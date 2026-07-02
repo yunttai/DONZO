@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/recon-result.schema.json",
+  "type": "object",
+  "required": ["program", "scope_file", "assets", "services", "endpoints"],
+  "properties": {
+    "program": { "type": "string" },
+    "scope_file": { "type": "string" },
+    "assets": { "type": "array", "items": { "type": "object" } },
+    "services": { "type": "array", "items": { "type": "object" } },
+    "endpoints": { "type": "array", "items": { "type": "object" } },
+    "generated_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

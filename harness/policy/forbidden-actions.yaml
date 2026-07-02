@@ -1,0 +1,20 @@
+forbidden:
+  - dos
+  - ddos
+  - stress_test
+  - brute_force
+  - credential_stuffing
+  - password_spraying
+  - social_engineering
+  - phishing
+  - malware_upload
+  - destructive_test
+  - data_modification
+  - payment_abuse
+  - session_hijacking
+  - account_takeover_automation
+  - automatic_exploit
+  - automatic_submission
+  - mass_exploitation
+  - automatic_secret_validation
+  - automatic_subdomain_takeover_claim

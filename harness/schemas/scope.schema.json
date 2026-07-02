@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/scope.schema.json",
+  "type": "object",
+  "required": ["program_name", "profile", "mode", "in_scope", "out_of_scope", "scan_policy"],
+  "properties": {
+    "program_name": { "type": "string", "minLength": 1 },
+    "profile": { "type": "string", "enum": ["fast", "normal", "deep"] },
+    "mode": { "type": "string", "const": "authorized-only" },
+    "in_scope": {
+      "type": "object",
+      "properties": {
+        "domains": { "type": "array", "items": { "type": "string" } },
+        "urls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "ip_ranges": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "out_of_scope": {
+      "type": "object",
+      "properties": {
+        "domains": { "type": "array", "items": { "type": "string" } },
+        "urls": { "type": "array", "items": { "type": "string" } },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "test_types": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "scan_policy": {
+      "type": "object",
+      "required": ["active_exploit", "automatic_submission"],
+      "properties": {
+        "passive_recon": { "type": "boolean" },
+        "active_recon": { "type": "boolean" },
+        "port_scan": { "type": "boolean" },
+        "crawling": { "type": "boolean" },
+        "archive_collection": { "type": "boolean" },
+        "content_discovery": { "type": "boolean" },
+        "parameter_mining": { "type": "boolean" },
+        "nuclei_scan": { "type": "boolean" },
+        "zap_baseline": { "type": "boolean" },
+        "dalfox_candidate": { "type": "boolean" },
+        "oast": { "type": "boolean" },
+        "active_exploit": { "type": "boolean", "const": false },
+        "automatic_submission": { "type": "boolean", "const": false }
+      },
+      "additionalProperties": true
+    },
+    "rate_limit": {
+      "type": "object",
+      "properties": {
+        "max_requests_per_second": { "type": "number", "exclusiveMinimum": 0 },
+        "max_concurrency": { "type": "integer", "minimum": 1 },
+        "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

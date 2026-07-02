@@ -1,0 +1,21 @@
+# Git command policy
+
+allow:
+  - git status
+  - git diff
+  - git log
+  - git show
+  - git branch --show-current
+
+prompt:
+  - git add
+  - git commit
+  - git push
+  - git tag
+  - gh pr create
+
+forbid:
+  - git reset --hard
+  - git checkout --
+  - git clean -fd
+  - force push

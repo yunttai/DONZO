@@ -1,0 +1,32 @@
+# Recon command policy
+
+require:
+  - explicit scope file
+  - authorized-only mode
+  - rate limit
+  - output redaction
+
+prompt:
+  - subfinder
+  - dnsx
+  - httpx
+  - naabu
+  - katana
+  - nuclei
+  - amass
+  - bbot
+  - gau
+  - waybackurls
+  - ffuf
+  - feroxbuster
+  - arjun
+  - dalfox
+  - interactsh
+
+forbid:
+  - masscan without explicit approval
+  - nmap aggressive flags
+  - nuclei templates tagged dos
+  - nuclei templates tagged destructive
+  - dalfox outside reflected candidates
+  - interactsh unless oast is enabled by policy

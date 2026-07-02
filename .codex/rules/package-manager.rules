@@ -1,0 +1,15 @@
+# Package manager policy
+
+prompt:
+  - python -m pip install
+  - pip install
+  - npm install
+  - npm update
+  - pnpm install
+  - yarn install
+
+forbid:
+  - curl pipe shell installers
+  - wget pipe shell installers
+  - install scripts that request credentials
+  - package commands that print environment secrets

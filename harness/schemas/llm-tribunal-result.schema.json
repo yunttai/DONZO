@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/llm-tribunal-result.schema.json",
+  "type": "object",
+  "required": [
+    "llm_required",
+    "fail_closed",
+    "driver",
+    "llm_status",
+    "verification_status",
+    "include_in_final_report",
+    "evidence_pack",
+    "verdict",
+    "error"
+  ],
+  "properties": {
+    "llm_required": { "type": "boolean", "const": true },
+    "fail_closed": { "type": "boolean", "const": true },
+    "driver": { "type": "string", "enum": ["openai", "anthropic", "codex_cli"] },
+    "llm_status": {
+      "type": "string",
+      "enum": [
+        "not_submitted",
+        "submitted",
+        "running",
+        "succeeded",
+        "failed",
+        "schema_invalid",
+        "retry_exceeded",
+        "pending_batch",
+        "rate_limited",
+        "timeout"
+      ]
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "llm_pending",
+        "llm_failed",
+        "llm_schema_invalid",
+        "likely_false_positive",
+        "needs_manual_review",
+        "likely_true_positive",
+        "confirmed_candidate",
+        "out_of_scope_or_not_allowed"
+      ]
+    },
+    "include_in_final_report": { "type": "boolean" },
+    "evidence_pack": {
+      "type": "object",
+      "required": [
+        "program",
+        "target",
+        "candidate_type",
+        "scope_summary",
+        "candidate",
+        "evidence",
+        "safety_constraints",
+        "redactions_applied"
+      ],
+      "properties": {
+        "program": { "type": "string" },
+        "target": { "type": "string" },
+        "candidate_type": { "type": "string" },
+        "scope_summary": { "type": "object" },
+        "candidate": { "type": "object" },
+        "evidence": { "type": "object" },
+        "safety_constraints": { "type": "object" },
+        "redactions_applied": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "verdict": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": [
+            "verdict",
+            "confidence",
+            "priority",
+            "risk_score_adjustment",
+            "impact_assessment",
+            "manual_verification_required",
+            "manual_verification_steps",
+            "false_positive_reasons",
+            "not_allowed_actions"
+          ],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "confirmed_candidate",
+                "likely_true_positive",
+                "needs_manual_review",
+                "likely_false_positive",
+                "out_of_scope_or_not_allowed"
+              ]
+            },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "priority": { "type": "string", "enum": ["P0", "P1", "P2", "P3", "IGNORE"] },
+            "risk_score_adjustment": { "type": "integer", "minimum": -100, "maximum": 100 },
+            "impact_assessment": { "type": "string" },
+            "manual_verification_required": { "type": "boolean" },
+            "manual_verification_steps": { "type": "array", "items": { "type": "string" } },
+            "false_positive_reasons": { "type": "array", "items": { "type": "string" } },
+            "not_allowed_actions": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ]
+    },
+    "error": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

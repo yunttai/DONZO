@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/report.schema.json",
+  "type": "object",
+  "required": ["program", "scope_file", "summary", "findings"],
+  "properties": {
+    "program": { "type": "string" },
+    "scope_file": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["finding_count"],
+      "properties": {
+        "finding_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "finding.schema.json" }
+    }
+  },
+  "additionalProperties": true
+}

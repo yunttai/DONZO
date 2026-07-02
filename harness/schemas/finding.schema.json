@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/finding.schema.json",
+  "type": "object",
+  "required": [
+    "finding_id",
+    "title",
+    "severity",
+    "confidence",
+    "target",
+    "candidate_type",
+    "source",
+    "evidence",
+    "verification_status",
+    "auto_exploit"
+  ],
+  "properties": {
+    "finding_id": { "type": "string", "minLength": 8 },
+    "title": { "type": "string", "minLength": 1 },
+    "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "target": { "type": "string", "minLength": 1 },
+    "candidate_type": { "type": "string", "minLength": 1 },
+    "source": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "evidence": { "type": "object" },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "llm_pending",
+        "llm_failed",
+        "llm_schema_invalid",
+        "likely_false_positive",
+        "needs_manual_review",
+        "manual_required",
+        "likely_true_positive",
+        "confirmed_candidate",
+        "out_of_scope_or_not_allowed",
+        "reviewed",
+        "false_positive"
+      ]
+    },
+    "auto_exploit": { "type": "boolean", "const": false },
+    "risk_score": { "type": "number" },
+    "priority": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+    "manual_verification": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

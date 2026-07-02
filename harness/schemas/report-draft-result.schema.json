@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/report-draft.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stage", "markdown", "included_findings", "excluded_findings", "safety_notes"],
+  "properties": {
+    "stage": { "type": "string", "const": "report_writer" },
+    "markdown": { "type": "string", "minLength": 1 },
+    "included_findings": { "type": "array", "items": { "type": "string" } },
+    "excluded_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "reason"],
+        "properties": {
+          "target": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "safety_notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

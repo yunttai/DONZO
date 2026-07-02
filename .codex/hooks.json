@@ -1,0 +1,29 @@
+{
+  "hooks": [
+    {
+      "event": "user_prompt",
+      "command": "python .codex/hooks/user_prompt_guard.py",
+      "description": "Detect credentials or secret-like material in prompts."
+    },
+    {
+      "event": "pre_tool_use",
+      "command": "python .codex/hooks/pre_tool_use_policy.py",
+      "description": "Block destructive commands and recon without scope."
+    },
+    {
+      "event": "permission_request",
+      "command": "python .codex/hooks/permission_request.py",
+      "description": "Review high-risk permission requests before approval."
+    },
+    {
+      "event": "post_tool_use",
+      "command": "python .codex/hooks/post_tool_use_review.py",
+      "description": "Check generated artifacts for secret leakage."
+    },
+    {
+      "event": "stop",
+      "command": "python .codex/hooks/stop_summary.py",
+      "description": "Write a short Codex work summary artifact."
+    }
+  ]
+}

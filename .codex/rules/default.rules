@@ -1,0 +1,28 @@
+# DONZO default command policy
+
+allow:
+  - rg
+  - git status
+  - git diff
+  - git log
+  - python harness/scripts/validate_scope.py
+  - python harness/scripts/run_evals.py
+  - python -m pytest
+
+prompt:
+  - python -m pip install
+  - npm install
+  - network access
+  - recon or scan tools
+
+forbid:
+  - rm -rf
+  - Remove-Item -Recurse
+  - git reset --hard
+  - git checkout --
+  - credential stuffing
+  - brute force
+  - destructive tests
+  - secret validation
+  - automatic exploit
+  - automatic submission

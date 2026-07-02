@@ -1,0 +1,2 @@
+{"url":"https://app.example.com","host":"app.example.com","status_code":200,"title":"Example App","tech":["nginx"]}
+{"url":"https://api.example.com","host":"api.example.com","status_code":200,"title":"Example API","tech":["spring"]}

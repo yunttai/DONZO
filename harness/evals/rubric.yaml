@@ -1,0 +1,13 @@
+checks:
+  scope:
+    weight: 30
+    must_pass: true
+  redaction:
+    weight: 30
+    must_pass: true
+  normalization:
+    weight: 20
+    must_pass: true
+  report_quality:
+    weight: 20
+    must_pass: false

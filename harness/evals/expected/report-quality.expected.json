@@ -1,0 +1,3 @@
+{
+  "required_sections": ["Target", "Summary", "Priority Findings", "Out-of-Scope Removed Items"]
+}

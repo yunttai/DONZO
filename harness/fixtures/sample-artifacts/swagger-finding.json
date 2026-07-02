@@ -1,0 +1,11 @@
+{
+  "title": "Public Swagger UI",
+  "severity": "medium",
+  "target": "https://api.example.com/swagger-ui/",
+  "source": ["fixture"],
+  "candidate_type": "EXPOSED_API_DOCS",
+  "status_code": 200,
+  "evidence": {
+    "response_path": "output/evidence/finding-001/response.txt"
+  }
+}

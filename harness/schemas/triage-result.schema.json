@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/triage-result.schema.json",
+  "type": "object",
+  "required": ["input_count", "normalized_count", "deduped_count", "findings"],
+  "properties": {
+    "input_count": { "type": "integer", "minimum": 0 },
+    "normalized_count": { "type": "integer", "minimum": 0 },
+    "deduped_count": { "type": "integer", "minimum": 0 },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "finding.schema.json" }
+    }
+  },
+  "additionalProperties": true
+}

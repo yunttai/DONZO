@@ -1,0 +1,19 @@
+allowed_by_default:
+  - passive_subdomain_enumeration
+  - dns_validation
+  - low_rate_http_probing
+  - low_rate_crawling
+  - archive_url_collection
+  - javascript_static_analysis
+  - parameter_extraction
+  - finding_normalization
+  - secret_redaction
+  - report_draft_generation
+
+allowed_with_policy_gate:
+  - port_scan
+  - content_discovery
+  - safe_nuclei_scan
+  - zap_baseline
+  - dalfox_candidate_mode
+  - oast_candidate_validation

@@ -1,0 +1,120 @@
+program_name: example-bounty
+profile: fast
+mode: authorized-only
+
+in_scope:
+  domains:
+    - example.com
+    - "*.example.com"
+  urls:
+    - https://app.example.com
+  ip_ranges: []
+
+out_of_scope:
+  domains:
+    - payments.example.com
+  urls: []
+  paths:
+    - /logout
+    - /delete
+    - /checkout
+    - /payment
+  test_types:
+    - dos
+    - ddos
+    - stress_test
+    - bruteforce
+    - brute_force
+    - credential_stuffing
+    - password_spraying
+    - social_engineering
+    - phishing
+    - malware_upload
+    - destructive_test
+    - data_modification
+    - payment_abuse
+    - session_hijacking
+    - account_takeover_automation
+    - automatic_exploit
+    - automatic_submission
+    - mass_exploitation
+    - automatic_secret_validation
+    - automatic_subdomain_takeover_claim
+
+scan_policy:
+  passive_recon: true
+  active_recon: true
+  port_scan: false
+  crawling: true
+  archive_collection: true
+  content_discovery: false
+  parameter_mining: true
+  nuclei_scan: false
+  zap_baseline: false
+  dalfox_candidate: false
+  oast: false
+  active_exploit: false
+  automatic_submission: false
+
+rate_limit:
+  max_requests_per_second: 3
+  max_concurrency: 5
+  timeout_seconds: 10
+
+llm:
+  required: true
+  fail_closed: true
+  primary_provider: codex_cli
+  secondary_provider: openai
+  drivers:
+    codex_cli:
+      enabled: true
+      command: codex
+      model: default
+      temperature: 0.0
+      json_schema_required: true
+      timeout_seconds: 180
+      max_attempts: 2
+      output_dir: artifacts/llm
+      sandbox: read-only
+      ignore_user_config: true
+      ignore_rules: true
+      strict_config: true
+      json_events: true
+    openai:
+      enabled: false
+      model: gpt-5.5
+      temperature: 0.0
+      json_schema_required: true
+    anthropic:
+      enabled: false
+      model: claude-sonnet
+      temperature: 0.0
+      json_schema_required: true
+  stages:
+    policy_parser: true
+    candidate_generator: true
+    finding_triage: true
+    advocate: true
+    critic: true
+    judge: true
+    risk_ranker: true
+    report_writer: true
+  failure_policy:
+    on_api_error: mark_llm_failed
+    on_schema_error: retry_then_mark_schema_invalid
+    on_rate_limit: queue_for_batch
+    on_timeout: retry_with_backoff
+    fallback_to_rules: false
+  privacy:
+    redact_secrets: true
+    redact_cookies: true
+    redact_auth_headers: true
+    max_response_excerpt_chars: 4000
+    store_prompt_and_response: true
+  safety:
+    no_auto_exploit: true
+    no_auto_submission: true
+    no_secret_validation: true
+    no_takeover_claim: true
+    require_manual_verification: true

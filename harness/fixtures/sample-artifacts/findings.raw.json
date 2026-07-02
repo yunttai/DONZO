@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Public Swagger UI",
+    "severity": "medium",
+    "url": "https://api.example.com/swagger-ui/",
+    "tool": "fixture",
+    "candidate_type": "exposed_api_docs"
+  },
+  {
+    "title": "Order Object ID Candidate",
+    "severity": "high",
+    "url": "https://api.example.com/api/v1/orders/123",
+    "tool": "candidate_engine",
+    "candidate_type": "bola_idor"
+  }
+]

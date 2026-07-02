@@ -1,0 +1,12 @@
+{
+  "name": "donzo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Authorized-only black-box bug bounty automation harness",
+  "scripts": {
+    "validate:scope": "python harness/scripts/validate_scope.py --scope scope.example.yaml",
+    "harness": "python harness/scripts/run_evals.py",
+    "test": "python -m pytest",
+    "lint": "python -m ruff check ."
+  }
+}

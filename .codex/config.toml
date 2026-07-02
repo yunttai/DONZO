@@ -1,0 +1,32 @@
+# Project-local Codex policy. Keep this conservative; security-sensitive work
+# should be gated by the hooks, rules, and harness in this repository.
+
+model = "gpt-5-codex"
+reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[workspace]
+instructions = "AGENTS.md"
+override_instructions = "AGENTS.override.md"
+
+[review]
+auto_review = true
+focus = [
+  "scope bypass",
+  "unsafe command execution",
+  "secret leakage",
+  "destructive scan behavior",
+  "missing redaction",
+  "finding validation gaps",
+]
+
+[subagents]
+max_threads = 4
+default_timeout_seconds = 900
+
+[mcp]
+prefer_codegraph = true
+
+[status_line]
+format = "DONZO | scope-safe | {model} | {cwd}"
