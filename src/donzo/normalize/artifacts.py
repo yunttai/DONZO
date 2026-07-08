@@ -136,7 +136,7 @@ def normalize_endpoint_records(
     endpoints: list[dict[str, Any]] = []
     removed: list[dict[str, Any]] = []
     for record in records:
-        url = str(record.get("url") or record.get("target") or record.get("matched-at") or "")
+        url = endpoint_record_url(record)
         if not url:
             removed.append({"record": record, "reason": "missing url"})
             continue
@@ -144,13 +144,13 @@ def normalize_endpoint_records(
         if not decision.allowed:
             removed.append({"record": record, "reason": "; ".join(decision.reasons)})
             continue
-        method = str(record.get("method") or "GET").upper()
+        method = endpoint_record_method(record)
         endpoint = Endpoint(
             url=url,
             method=method,
             source=[source],
-            status_code=as_int(record.get("status_code") or record.get("status-code")),
-            content_type=string_or_none(record.get("content_type") or record.get("content-type")),
+            status_code=endpoint_record_status_code(record),
+            content_type=endpoint_record_content_type(record),
             params=endpoint_params(url, record),
             requires_auth_guess=auth_guess(record),
             risk_hints=endpoint_risk_hints(url, record),
@@ -282,6 +282,56 @@ def string_or_none(value: object) -> str | None:
     return text if text else None
 
 
+def endpoint_record_url(record: dict[str, Any]) -> str:
+    direct = record.get("url") or record.get("target") or record.get("matched-at")
+    if direct:
+        return str(direct)
+    request = record.get("request")
+    if isinstance(request, dict):
+        nested = request.get("endpoint") or request.get("url") or request.get("target")
+        if nested:
+            return str(nested)
+    return ""
+
+
+def endpoint_record_method(record: dict[str, Any]) -> str:
+    direct = record.get("method")
+    if direct:
+        return str(direct).upper()
+    request = record.get("request")
+    if isinstance(request, dict) and request.get("method"):
+        return str(request["method"]).upper()
+    return "GET"
+
+
+def endpoint_record_status_code(record: dict[str, Any]) -> int | None:
+    direct = as_int(record.get("status_code") or record.get("status-code"))
+    if direct is not None:
+        return direct
+    response = record.get("response")
+    if isinstance(response, dict):
+        return as_int(response.get("status_code") or response.get("status-code"))
+    return None
+
+
+def endpoint_record_content_type(record: dict[str, Any]) -> str | None:
+    direct = string_or_none(record.get("content_type") or record.get("content-type"))
+    if direct:
+        return direct
+    response = record.get("response")
+    if not isinstance(response, dict):
+        return None
+    nested = string_or_none(response.get("content_type") or response.get("content-type"))
+    if nested:
+        return nested
+    headers = response.get("headers")
+    if isinstance(headers, dict):
+        for key, value in headers.items():
+            if str(key).lower() == "content-type":
+                return string_or_none(value)
+    return None
+
+
 def extract_asset_target(line: str) -> str:
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
@@ -322,7 +372,7 @@ def endpoint_params(url: str, record: dict[str, Any]) -> list[str]:
 def auth_guess(record: dict[str, Any]) -> bool | None:
     if "requires_auth_guess" in record:
         return bool(record["requires_auth_guess"])
-    status = as_int(record.get("status_code") or record.get("status-code"))
+    status = endpoint_record_status_code(record)
     if status in {401, 403}:
         return True
     return None

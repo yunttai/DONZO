@@ -2,26 +2,16 @@
 
 ## Mission
 
-DONZO is an authorized-only, CLI-first black-box bug bounty automation project.
-The tool collects assets, services, endpoints, metadata, and vulnerability
-candidates inside an explicit scope, then prepares evidence and manual review
-queues for a human tester.
+DONZO is an authorized-only, CLI-first black-box security validation project.
+The tool collects assets, services, endpoints, metadata, vulnerability
+candidates, and red-team validation evidence inside explicit scope and ROE,
+then prepares evidence, oracle verdicts, reports, and regression cases for a
+human tester.
 
-This project must not become an automatic exploit, automatic submission, or
-mass attack system.
+Red-team execution must remain scope-enforced and ROE-bound. This project must
+not become an uncontrolled exploit, automatic submission, credential attack,
+DoS, destructive testing, or mass attack system.
 
-## Non-Negotiable Safety Rules
-
-- Require a scope file before any recon, scan, network probing, or report claim.
-- Never target out-of-scope domains, URLs, paths, IP ranges, or test types.
-- Do not run destructive tests, DoS, brute force, credential stuffing,
-  password spraying, phishing, social engineering, malware upload, session
-  hijacking, payment abuse, or data modification.
-- Do not use or validate discovered secrets automatically.
-- Do not claim subdomain takeovers automatically.
-- Keep OAST/interactsh-style tests off unless the program policy explicitly
-  allows them and the user explicitly enables them.
-- Treat scanner output as candidates, not confirmed vulnerabilities.
 
 ## Required Workflow
 
@@ -31,7 +21,10 @@ mass attack system.
 4. Store raw artifacts under `artifacts/` or `findings/raw/`.
 5. Normalize and redact outputs before writing reports.
 6. Generate human-verifiable evidence and manual verification steps.
-7. Run deterministic harness checks before finalizing changes.
+7. For red-team execution, require `scope.yaml`, engagement metadata, actor
+   model, rate limits, kill switch, evidence redaction, and per-request Scope
+   Guard decisions.
+8. Run deterministic harness checks before finalizing changes.
 
 ## Local Commands
 
@@ -101,7 +94,8 @@ Security review should prioritize:
 - Harness evals pass.
 - Reports are redacted.
 - Generated findings remain manual-review candidates.
-- Dangerous features are off by default.
+- Dangerous features are off by default and high-risk probe classes require
+  explicit opt-in.
 - Tests cover the touched safety-critical behavior.
 
 ## CodeGraph

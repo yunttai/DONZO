@@ -63,6 +63,7 @@ from donzo.clustering import cluster_records
 from donzo.config import ScopeConfig
 from donzo.dedupe import dedupe_records
 from donzo.evidence import write_evidence_notes
+from donzo.fuzzing import build_fuzz_artifacts, write_fuzz_artifacts
 from donzo.llm_triage.agent_interfaces import build_agent_interfaces, build_deterministic_agent_runs
 from donzo.llm_triage.agent_outputs import build_agent_output_scaffolds
 from donzo.llm_triage.stages import run_cluster_triage
@@ -583,6 +584,12 @@ def run_recon_pipeline(
         actor_model=actor_model,
     )
     oracle_templates = build_oracle_templates(safe_manual_test_plans)
+    fuzz_artifacts = build_fuzz_artifacts(
+        api_endpoint_models=api_endpoint_models,
+        parameter_classifications=parameter_classifications,
+        schema_diffs=schema_diffs,
+        actor_model=actor_model,
+    )
     api_artifact_index = build_api_artifact_index(
         output_dir=output_dir,
         api_endpoint_models=api_endpoint_models,
@@ -635,6 +642,8 @@ def run_recon_pipeline(
             "business_mutation_plans": len(business_mutation_plans),
             "safe_manual_test_plans": len(safe_manual_test_plans),
             "oracle_templates": len(oracle_templates),
+            "fuzz_plans": len(fuzz_artifacts["fuzz_plan"]),
+            "safe_fuzz_probes": len(fuzz_artifacts["safe_probes"]),
             "params": len(params),
             "removed": len(removed),
         },
@@ -792,6 +801,7 @@ def run_recon_pipeline(
     write_jsonl(normalized_dir / "business-mutation-plans.jsonl", business_mutation_plans)
     write_jsonl(normalized_dir / "manual-test-plans.jsonl", safe_manual_test_plans)
     write_jsonl(normalized_dir / "oracle-templates.jsonl", oracle_templates)
+    write_fuzz_artifacts(normalized_dir, fuzz_artifacts)
     write_json(normalized_dir / "agent-interfaces.json", agent_interfaces)
     write_jsonl(normalized_dir / "agent-runs.jsonl", agent_runs)
     write_jsonl(normalized_dir / "llm-agent-outputs.jsonl", llm_agent_outputs)
@@ -835,6 +845,7 @@ def run_recon_pipeline(
     write_jsonl(output_dir / "business-mutation-plans.jsonl", business_mutation_plans)
     write_jsonl(output_dir / "manual-test-plans.jsonl", safe_manual_test_plans)
     write_jsonl(output_dir / "oracle-templates.jsonl", oracle_templates)
+    write_fuzz_artifacts(output_dir, fuzz_artifacts)
     write_json(output_dir / "agent-interfaces.json", agent_interfaces)
     write_jsonl(output_dir / "agent-runs.jsonl", agent_runs)
     write_jsonl(output_dir / "llm-agent-outputs.jsonl", llm_agent_outputs)
@@ -898,6 +909,7 @@ def run_recon_pipeline(
             "business_mutation_plans": business_mutation_plans,
             "safe_manual_test_plans": safe_manual_test_plans,
             "oracle_templates": oracle_templates,
+            "fuzz_artifacts": fuzz_artifacts,
             "agent_interfaces": agent_interfaces,
             "agent_runs": agent_runs,
             "llm_agent_outputs": llm_agent_outputs,
@@ -952,6 +964,8 @@ def run_recon_pipeline(
                 "business_mutation_plans": len(business_mutation_plans),
                 "safe_manual_test_plans": len(safe_manual_test_plans),
                 "oracle_templates": len(oracle_templates),
+                "fuzz_plans": len(fuzz_artifacts["fuzz_plan"]),
+                "safe_fuzz_probes": len(fuzz_artifacts["safe_probes"]),
                 "agent_runs": len(agent_runs),
                 "llm_agent_outputs": len(llm_agent_outputs),
                 "port_services": len(port_services),
@@ -1012,6 +1026,8 @@ def run_recon_pipeline(
         "business_mutation_plans": len(business_mutation_plans),
         "safe_manual_test_plans": len(safe_manual_test_plans),
         "oracle_templates": len(oracle_templates),
+        "fuzz_plans": len(fuzz_artifacts["fuzz_plan"]),
+        "safe_fuzz_probes": len(fuzz_artifacts["safe_probes"]),
         "agent_runs": len(agent_runs),
         "llm_agent_outputs": len(llm_agent_outputs),
         "port_services": len(port_services),
@@ -1093,6 +1109,8 @@ def run_recon_pipeline(
             "security_invariants": len(security_invariants),
             "safe_manual_test_plans": len(safe_manual_test_plans),
             "oracle_templates": len(oracle_templates),
+            "fuzz_plans": len(fuzz_artifacts["fuzz_plan"]),
+            "safe_fuzz_probes": len(fuzz_artifacts["safe_probes"]),
             "llm_agent_outputs": len(llm_agent_outputs),
             "port_services": len(port_services),
             "params": len(params),
@@ -1136,6 +1154,9 @@ def run_recon_pipeline(
             "security_invariants": str(output_dir / "security-invariants.jsonl"),
             "manual_test_plans": str(output_dir / "manual-test-plans.jsonl"),
             "oracle_templates": str(output_dir / "oracle-templates.jsonl"),
+            "fuzz_plan": str(output_dir / "planning" / "fuzz-plan.jsonl"),
+            "safe_fuzz_probes": str(output_dir / "planning" / "safe-probes.jsonl"),
+            "fuzz_oracle_templates": str(output_dir / "planning" / "oracle-templates.jsonl"),
         },
         completed=True,
     )
@@ -3201,7 +3222,7 @@ def build_recon_command_plans(
                         "scan",
                         str(live_urls_file),
                         "-A",
-                        "apiroutes-210228:200",
+                        kiterunner_assetnote_wordlist(),
                         "-x",
                         concurrency,
                         "-j",
@@ -3528,6 +3549,8 @@ def optional_runtime_skip_reason(
     *,
     required_for_run: bool,
 ) -> str:
+    if reason := empty_input_skip_reason(plan):
+        return reason
     if required_for_run:
         return ""
     if not plan.allowed:
@@ -3538,6 +3561,28 @@ def optional_runtime_skip_reason(
             return "empty_input:subfinder"
     if reason := optional_tool_skip_reason(plan.name):
         return reason
+    return ""
+
+
+def empty_input_skip_reason(plan: CommandPlan) -> str:
+    if plan.name == "subfinder" and "-d" in plan.argv and not option_value(plan.argv, "-d").strip():
+        return "empty_input:root_domains"
+    if plan.name == "amass" and "enum" in plan.argv and "-d" not in plan.argv:
+        return "empty_input:root_domains"
+    if plan.name == "bbot" and option_values_empty_or_missing(plan.argv, "-t"):
+        return "empty_input:root_domains"
+    if plan.name == "uncover" and "-q" not in plan.argv:
+        return "empty_input:root_domains"
+    if plan.name in {"dnsx", "tlsx"}:
+        input_path = option_value(plan.argv, "-l")
+        if input_path and not file_has_text(input_path):
+            return "empty_input:candidate_assets"
+    if plan.name in {"gau", "waybackurls"} and not command_has_domain_argument(plan.argv):
+        return "empty_input:root_domains"
+    if plan.name in {"waymore", "paramspider"}:
+        input_path = option_value(plan.argv, "-i") or option_value(plan.argv, "-l")
+        if input_path and not file_has_text(input_path):
+            return "empty_input:root_domains"
     return ""
 
 
@@ -3556,6 +3601,33 @@ def option_value(argv: list[str], option: str) -> str:
     if index + 1 >= len(argv):
         return ""
     return argv[index + 1]
+
+
+def option_values_empty_or_missing(argv: list[str], option: str) -> bool:
+    try:
+        index = argv.index(option)
+    except ValueError:
+        return True
+    if index + 1 >= len(argv):
+        return True
+    return argv[index + 1].startswith("-")
+
+
+def command_has_domain_argument(argv: list[str]) -> bool:
+    options_with_values = {"--threads", "--timeout", "-t", "-p", "-lr", "-i", "-l"}
+    skip_next = False
+    for arg in argv[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in options_with_values:
+            skip_next = True
+            continue
+        if arg.startswith("-"):
+            continue
+        if "." in arg and "/" not in arg and "\\" not in arg:
+            return True
+    return False
 
 
 def file_has_text(path_value: str) -> bool:
@@ -3756,6 +3828,12 @@ def katana_max_domain_pages(config: ScopeConfig) -> int:
     upper = 120 if os.environ.get("DONZO_LONG_RECON") else 15
     default = max(5, min(upper, int(config.rate_limit.timeout_seconds)))
     return bounded_env_int("DONZO_KATANA_MAX_DOMAIN_PAGES", default, minimum=5, maximum=upper)
+
+
+def kiterunner_assetnote_wordlist() -> str:
+    return os.environ.get("DONZO_KITERUNNER_ASSETNOTE_WORDLIST", "").strip() or (
+        "apiroutes-260227:200"
+    )
 
 
 def openapi_schema_probe_limit(config: ScopeConfig) -> int:

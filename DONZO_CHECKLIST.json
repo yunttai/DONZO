@@ -436,5 +436,147 @@
         "notes": "Deterministic API, Parameter, Dependency, Handler, Invariant, Test Plan, Oracle, and Report agent interfaces now exist with schema-friendly runs. External LLM calls remain optional/fail-closed and evidence constrained."
       }
     ]
+  },
+  "redteam_roadmap": {
+    "schema_version": 1,
+    "completion_percent": 58.0,
+    "priority_order": [
+      "RT-P0-SCOPE-GUARD",
+      "RT-P0-ACTOR-SESSION-MANAGER",
+      "RT-P0-GUARDED-HTTP-EXECUTOR",
+      "RT-P0-EVIDENCE-REDACTION",
+      "RT-P1-FUZZ-SAFETY-POLICY",
+      "RT-P1-ORACLE-AUTOMATION",
+      "RT-P2-BROWSER-GRAPHQL-OAST-EXECUTORS",
+      "RT-P3-HIGH-RISK-OPT-IN-CHAINS"
+    ],
+    "items": [
+      {
+        "id": "RT-P0-SCOPE-GUARD",
+        "priority": "P0",
+        "title": "ROE-backed Scope Guard for red-team execution",
+        "status": "done",
+        "percent": 100,
+        "acceptance_criteria": [
+          "scope.yaml is required for execution",
+          "allowed and denied hosts, paths, methods, classes, engagement window, kill switch, and request budgets are enforced",
+          "redteam mode fails closed when engagement, actors, rate limits, kill switch, or evidence redaction are missing"
+        ],
+        "validation_status": "passed",
+        "tests": ["tests/test_redteam_execution.py"],
+        "files_touched": ["src/donzo/redteam/scope_guard.py", "config/scope.yaml"],
+        "notes": "Scope Guard blocks out-of-scope and opt-in-only classes before any executor can send a request."
+      },
+      {
+        "id": "RT-P0-ACTOR-SESSION-MANAGER",
+        "priority": "P0",
+        "title": "Actor session manager with reference-only credentials",
+        "status": "done",
+        "percent": 100,
+        "acceptance_criteria": [
+          "actors.yaml loads user_A, user_B, admin/member-style actors and relationships",
+          "raw sessions are not persisted",
+          "BOLA, BFLA, mass assignment, and business logic execution require actor context"
+        ],
+        "validation_status": "passed",
+        "tests": ["tests/test_redteam_execution.py"],
+        "files_touched": ["src/donzo/redteam/actor_sessions.py", "config/actors.yaml"],
+        "notes": "Unsafe session references are redacted and actor-required vulnerability classes fail closed without actor context."
+      },
+      {
+        "id": "RT-P0-GUARDED-HTTP-EXECUTOR",
+        "priority": "P0",
+        "title": "Guarded HTTP execution engine",
+        "status": "done",
+        "percent": 100,
+        "acceptance_criteria": [
+          "operator-selected requests can execute only after Scope Guard approval",
+          "plan_only never sends network requests",
+          "assisted/redteam execution requires explicit --execute",
+          "blocked requests are logged"
+        ],
+        "validation_status": "passed",
+        "tests": ["tests/test_redteam_execution.py"],
+        "files_touched": ["src/donzo/redteam/executor.py", "src/donzo/cli.py"],
+        "notes": "CLI commands now support redteam init/check/run and redteam-run alias with guarded execution artifacts."
+      },
+      {
+        "id": "RT-P0-EVIDENCE-REDACTION",
+        "priority": "P0",
+        "title": "Red-team evidence redaction and artifact layout",
+        "status": "done",
+        "percent": 100,
+        "acceptance_criteria": [
+          "request and response evidence is redacted by default",
+          "execution artifacts include baseline, probe, read-back, blocked, evidence, feedback graph, confirmed findings, and regression placeholders",
+          "raw secrets are never required for unit tests"
+        ],
+        "validation_status": "passed",
+        "tests": ["tests/test_redteam_execution.py"],
+        "files_touched": ["src/donzo/redteam/evidence.py", "src/donzo/cli.py"],
+        "notes": "Authorization headers and secret-like values are redacted in executor evidence records."
+      },
+      {
+        "id": "RT-P1-FUZZ-SAFETY-POLICY",
+        "priority": "P1",
+        "title": "Fuzz safety policy and redteam artifact names",
+        "status": "done",
+        "percent": 100,
+        "acceptance_criteria": [
+          "unsafe actions, OAST-required classes, live/redteam missing scope guard, and excessive request counts are blocked",
+          "fuzz planning writes probe-plan/probe-results/readback-results-compatible artifact paths"
+        ],
+        "validation_status": "passed",
+        "tests": ["tests/test_fuzzing_oracles.py"],
+        "files_touched": ["src/donzo/fuzzing/safety_policy.py", "src/donzo/fuzzing/models.py", "src/donzo/fuzzing/artifacts.py"],
+        "notes": "The missing safety_policy module is restored and existing fuzz/oracle tests pass."
+      },
+      {
+        "id": "RT-P1-ORACLE-AUTOMATION",
+        "priority": "P1",
+        "title": "Vulnerability-specific oracle automation",
+        "status": "done",
+        "percent": 100,
+        "acceptance_criteria": [
+          "SQLi, SSRF, SSTI, BOLA, BFLA, mass assignment, EDE, business logic, XSS, command injection, path traversal, file upload, and XXE oracles exist as deterministic evaluators",
+          "confirmed results can generate minimized findings and regression cases"
+        ],
+        "validation_status": "passed",
+        "tests": ["tests/test_fuzzing_oracles.py"],
+        "files_touched": ["src/donzo/oracles/", "src/donzo/oracles/fuzz_engine.py"],
+        "notes": "Existing oracle suite evaluates offline observations and does not auto-submit or mass exploit."
+      },
+      {
+        "id": "RT-P2-BROWSER-GRAPHQL-OAST-EXECUTORS",
+        "priority": "P2",
+        "title": "Protocol-specific executors and external adapters",
+        "status": "planned",
+        "percent": 20,
+        "acceptance_criteria": [
+          "GraphQL executor routes operations through Scope Guard",
+          "Playwright browser oracle records XSS marker execution and screenshots only when needed",
+          "OAST provider adapters match interactions without requiring external services in tests"
+        ],
+        "validation_status": "not_started",
+        "tests": [],
+        "files_touched": ["src/donzo/oast/"],
+        "notes": "In-memory OAST interface exists; dedicated GraphQL/browser executors remain next work."
+      },
+      {
+        "id": "RT-P3-HIGH-RISK-OPT-IN-CHAINS",
+        "priority": "P3",
+        "title": "High-risk opt-in validation chains",
+        "status": "planned",
+        "percent": 0,
+        "acceptance_criteria": [
+          "command injection, sensitive path traversal, file upload execution, cloud metadata, and destructive mutation classes require explicit ROE opt-in",
+          "lab mode can exercise aggressive classes only against explicitly configured lab scope"
+        ],
+        "validation_status": "not_started",
+        "tests": [],
+        "files_touched": [],
+        "notes": "Current Scope Guard blocks these classes by default."
+      }
+    ]
   }
 }

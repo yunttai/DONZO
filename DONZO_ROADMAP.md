@@ -147,3 +147,35 @@ The roadmap reaches 100% only when every item in `DONZO_CHECKLIST.json` is
 `done`, has tests or explicit validation evidence, and full local validation
 passes. Current validation: `python -m pytest -q` passed with 136 tests and
 `python harness/scripts/run_evals.py` passed.
+
+## Redteam Execution Roadmap
+
+DONZO is being extended from safe manual planning into a scope-enforced
+authorized red-team validation framework. The redteam roadmap is tracked
+separately under `redteam_roadmap` in `DONZO_CHECKLIST.json` so the completed
+modeling roadmap remains intact.
+
+Implemented P0/P1 foundation:
+
+1. Scope Guard for `scope.yaml`/engagement metadata, allowed and denied hosts,
+   paths, methods, classes, engagement windows, request budgets, kill switch,
+   and explicit opt-in probe classes.
+2. Actor session manager for `actors.yaml` with reference-only sessions and
+   actor-required enforcement for BOLA/BFLA/mass-assignment/business-logic
+   classes.
+3. Guarded HTTP executor with `plan_only`, `assisted`, `redteam`, and `lab`
+   modes. Network execution requires explicit `--execute` and every request
+   is evaluated by Scope Guard first.
+4. Redacted evidence records and run artifacts for baseline, probe, read-back,
+   blocked requests, evidence, feedback graph, confirmed findings, and
+   regression placeholders.
+5. Fuzz safety policy and redteam-compatible probe artifact names.
+
+Next P2/P3 work:
+
+1. GraphQL executor that maps operation-level plans to guarded HTTP requests.
+2. Playwright/browser oracle for XSS marker execution and screenshot evidence.
+3. External OAST provider adapters while keeping mock OAST tests local.
+4. Lab-scoped high-risk opt-in chains for command injection, sensitive path
+   traversal, file upload execution, cloud metadata, and destructive mutation
+   classes.

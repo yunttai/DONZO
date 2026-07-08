@@ -1,0 +1,59 @@
+engagement:
+  name: authorized-redteam-example
+  mode: redteam
+  start_time: "2000-01-01T00:00:00+00:00"
+  end_time: "2999-12-31T23:59:59+00:00"
+  operator: security-team
+  authorization_ref: internal-ticket-1234
+
+scope:
+  allowed_hosts:
+    - app.example.com
+    - api.example.com
+  denied_hosts: []
+  allowed_schemes:
+    - https
+  allowed_paths:
+    - /api/
+    - /graphql
+  denied_paths:
+    - /admin/prod-dangerous
+    - /internal/payment-settlement
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+
+limits:
+  max_rps: 2
+  max_concurrent_requests: 3
+  max_requests_per_endpoint: 50
+  max_total_requests: 5000
+  stop_on_5xx_rate_percent: 10
+  stop_on_429: true
+
+allowed_classes:
+  - BOLA
+  - BFLA
+  - MassAssignment
+  - ExcessiveDataExposure
+  - SQLi
+  - SSRF
+  - SSTI
+  - XSS
+  - BusinessLogic
+
+requires_explicit_opt_in:
+  - CommandInjection
+  - PathTraversalSensitiveRead
+  - FileUploadExecution
+  - DestructiveMutation
+  - CloudMetadataAccess
+
+evidence:
+  redact_secrets: true
+  store_raw_responses: false
+  store_minimal_body_diff: true
+  screenshot_on_browser_oracle: true

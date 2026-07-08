@@ -90,3 +90,40 @@ Known lint note:
 
 - Whole-repo `python -m ruff check src tests` still reports pre-existing lint
   debt in older files, so it is not yet a clean whole-repo gate.
+
+## 2026-07-09 Redteam Execution Pivot
+
+Implemented the first scope-enforced red-team validation slice:
+
+- Added `src/donzo/redteam/` with Scope Guard, actor session manager, redacted
+  evidence records, and guarded HTTP execution.
+- Added `donzo redteam init`, `donzo redteam check`, `donzo redteam run`, and
+  `donzo redteam-run` CLI flows.
+- Added `config/scope.yaml` and `config/actors.yaml` examples for ROE-backed
+  redteam mode.
+- Restored the missing `donzo.fuzzing.safety_policy` module and added redteam
+  artifact path compatibility for `probe-plan`, `probe-results`, and
+  `readback-results`.
+- Added deterministic tests for fail-closed scope decisions, opt-in blocking,
+  reference-only actor sessions, dry-run behavior, mock guarded execution, and
+  CLI artifact generation.
+
+Current redteam roadmap completion: 58.0% tracked under
+`redteam_roadmap` in `DONZO_CHECKLIST.json`.
+
+Validation:
+
+1. `python -m compileall -q src tests` passed.
+2. `python -m pytest tests/test_redteam_execution.py tests/test_fuzzing_oracles.py -q`
+   passed with 14 tests.
+3. `python -m json.tool DONZO_CHECKLIST.json` passed.
+4. `python -m pytest -q` passed with 151 tests.
+5. `python harness/scripts/validate_scope.py --scope scope.example.yaml` passed.
+6. `python harness/scripts/run_evals.py` passed.
+
+Remaining redteam work:
+
+- Dedicated GraphQL execution wrapper behind Scope Guard.
+- Playwright/browser execution oracle for XSS marker confirmation.
+- External OAST provider adapters beyond the in-memory test interface.
+- Lab-only/high-risk opt-in validation chains.

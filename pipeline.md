@@ -671,23 +671,6 @@ GraphQL endpoint discovery
    └─ /playground
 ```
 
-### 제한 조건
-
-```yaml
-content_discovery_policy:
-  enabled_profile:
-    - normal
-    - deep
-  max_rate: 2
-  max_depth: 2
-  exclude_paths:
-    - /logout
-    - /delete
-    - /checkout
-    - /payment
-  destructive_methods_blocked: true
-```
-
 ### 출력
 
 ```text

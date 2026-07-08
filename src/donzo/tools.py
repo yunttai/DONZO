@@ -164,6 +164,12 @@ def candidate_binaries(spec: ToolSpec) -> list[str]:
     go_bin = home / "go" / "bin" / executable_name(spec.binary)
     if go_bin.exists():
         candidates.append(str(go_bin))
+    donzo_bin = home / ".donzo" / "tools" / "bin" / executable_name(spec.binary)
+    if donzo_bin.exists():
+        candidates.append(str(donzo_bin))
+    pipx_bin = home / ".local" / "bin" / executable_name(spec.binary)
+    if pipx_bin.exists():
+        candidates.append(str(pipx_bin))
     for scripts_dir in user_script_dirs():
         user_binary = scripts_dir / executable_name(spec.binary)
         if user_binary.exists():

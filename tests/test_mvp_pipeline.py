@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import sys
 import threading
 import time
@@ -87,10 +88,13 @@ from donzo.planning.test_plans import build_safe_manual_test_plans
 from donzo.ranking import rank_records
 from donzo.review import build_llm_triage_queue
 from donzo.runner import CommandResult, build_command_plan, run_command_plan
+from donzo.runtime_env import refresh_runtime_env
+from donzo.scope import Scope
 from donzo.storage.jsonl import load_json_records, write_jsonl
 from donzo.tools import check_tools, tool_matrix
 from donzo.traffic.har_ingest import endpoint_records_from_traffic, ingest_har_file
 from donzo.verification import verify_candidates
+from donzo.verification.pipeline import indeterminate_probe_reason
 from donzo.verification.probe import ProbeResult, probe_url
 
 
@@ -129,6 +133,33 @@ def test_parameter_candidates_are_manual_review_only() -> None:
     candidate_types = {item["candidate_type"] for item in candidates}
     assert {"SSRF", "OPEN_REDIRECT"}.issubset(candidate_types)
     assert all(item["auto_exploit"] is False for item in candidates)
+
+
+def test_katana_nested_request_records_normalize_as_endpoints() -> None:
+    config = load_scope_config(Path("scope.example.yaml"))
+    endpoints, removed = normalize_endpoint_records(
+        [
+            {
+                "request": {
+                    "method": "GET",
+                    "endpoint": "https://app.example.com/lms/assets/index.js",
+                },
+                "response": {
+                    "status_code": 200,
+                    "headers": {"Content-Type": "application/javascript"},
+                },
+            }
+        ],
+        config=config,
+        source="katana",
+    )
+
+    assert removed == []
+    assert endpoints[0]["url"] == "https://app.example.com/lms/assets/index.js"
+    assert endpoints[0]["method"] == "GET"
+    assert endpoints[0]["status_code"] == 200
+    assert endpoints[0]["content_type"] == "application/javascript"
+    assert endpoints[0]["source"] == ["katana"]
 
 
 def test_technology_inference_extracts_backend_and_api_hints() -> None:
@@ -274,6 +305,21 @@ def test_probe_url_enforces_connect_deadline(monkeypatch) -> None:
 
     assert result.status_code is None
     assert result.error_signature == "timeout"
+
+
+def test_probe_url_classifies_tls_certificate_errors(monkeypatch) -> None:
+    config = load_scope_config(Path("scope.example.yaml"))
+
+    def raise_tls_error(*_args: Any, **_kwargs: Any):
+        raise ssl.SSLCertVerificationError("certificate has expired")
+
+    monkeypatch.setattr("donzo.verification.probe.socket_http_request", raise_tls_error)
+
+    result = probe_url("https://api.example.com/openapi.json", config=config)
+
+    assert result.status_code is None
+    assert result.error_signature == "tls_error:SSLCertVerificationError"
+    assert indeterminate_probe_reason(result) == "probe_tls_error"
 
 
 def test_verification_confirms_api_docs_from_probe_metadata() -> None:
@@ -1678,6 +1724,43 @@ def test_optional_alterx_skips_empty_subfinder_input(tmp_path: Path) -> None:
     assert optional_runtime_skip_reason(plan, required_for_run=True) == ""
 
 
+def test_url_only_scope_skips_root_domain_archive_tools(tmp_path: Path) -> None:
+    config = load_scope_config(Path("scope.example.yaml"))
+    url_only_config = replace(
+        config,
+        scope=Scope.from_mapping(
+            {
+                "in_scope": {
+                    "domains": [],
+                    "urls": ["https://app.example.com/lms"],
+                    "ip_ranges": [],
+                },
+                "out_of_scope": {},
+            }
+        ),
+    )
+    plans = build_recon_command_plans(
+        config=url_only_config,
+        output_dir=tmp_path / "deep",
+        profile="deep",
+        dry_run=False,
+    )
+    by_name = {item.name: item for item in plans}
+
+    assert (
+        optional_runtime_skip_reason(by_name["subfinder"], required_for_run=True)
+        == "empty_input:root_domains"
+    )
+    assert (
+        optional_runtime_skip_reason(by_name["gau"], required_for_run=True)
+        == "empty_input:root_domains"
+    )
+    assert (
+        optional_runtime_skip_reason(by_name["waybackurls"], required_for_run=True)
+        == "empty_input:root_domains"
+    )
+
+
 def test_deep_alterx_plan_uses_stdin_input(tmp_path: Path) -> None:
     config = load_scope_config(Path("scope.example.yaml"))
     plans = build_recon_command_plans(
@@ -1809,6 +1892,43 @@ def test_recon_plan_applies_scope_rate_limits_to_supported_tools(tmp_path: Path)
     assert "-or" in by_name["katana"]
     assert_flag_value(by_name["gau"], "--threads", "5")
     assert_flag_value(by_name["gau"], "--timeout", "10")
+
+
+def test_deep_recon_plan_uses_current_kiterunner_assetnote_alias(tmp_path: Path) -> None:
+    config = load_scope_config(Path("scope.example.yaml"))
+    config = replace(
+        config,
+        policy=replace(config.policy, flags={**config.policy.flags, "content_discovery": True}),
+    )
+    plans = build_recon_command_plans(
+        config=config,
+        output_dir=tmp_path / "deep",
+        profile="deep",
+    )
+    by_name = {plan.name: plan.argv for plan in plans}
+
+    assert_flag_value(by_name["kiterunner"], "-A", "apiroutes-260227:200")
+
+
+def test_deep_recon_plan_allows_kiterunner_wordlist_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = load_scope_config(Path("scope.example.yaml"))
+    config = replace(
+        config,
+        policy=replace(config.policy, flags={**config.policy.flags, "content_discovery": True}),
+    )
+    monkeypatch.setenv("DONZO_KITERUNNER_ASSETNOTE_WORDLIST", "apiroutes-fixture:25")
+
+    plans = build_recon_command_plans(
+        config=config,
+        output_dir=tmp_path / "deep",
+        profile="deep",
+    )
+    by_name = {plan.name: plan.argv for plan in plans}
+
+    assert_flag_value(by_name["kiterunner"], "-A", "apiroutes-fixture:25")
 
 
 def test_long_recon_env_raises_bounded_normal_katana_and_command_limits(
@@ -2718,6 +2838,42 @@ def test_load_project_dotenv_reads_local_file_without_overwriting(
     assert os.environ["DONZO_AUTH_COOKIE"] == "token=fixture"
     assert os.environ["SHODAN_API_KEY"] == "fixture-shodan"
     assert os.environ["DONZO_EXISTING"] == "from-shell"
+
+
+def test_refresh_runtime_env_prepends_local_tools_and_sets_defaults(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    home = tmp_path / "home"
+    venv_bin = repo_root / (".venv" if os.name == "nt" else ".venv-wsl") / (
+        "Scripts" if os.name == "nt" else "bin"
+    )
+    node_bin = home / ".donzo" / "node" / "bin"
+    local_bin = home / ".local" / "bin"
+    go_bin = home / ".donzo" / "go" / "bin"
+    for path in (venv_bin, node_bin, local_bin, go_bin):
+        path.mkdir(parents=True)
+
+    codex_name = "codex.cmd" if os.name == "nt" else "codex"
+    go_name = "go.exe" if os.name == "nt" else "go"
+    (local_bin / codex_name).write_text("", encoding="utf-8")
+    if os.name == "nt":
+        (local_bin / "codex").write_text("", encoding="utf-8")
+    (go_bin / go_name).write_text("", encoding="utf-8")
+
+    env = {
+        "PATH": str(tmp_path / "existing"),
+        "CODEX_BIN": str(tmp_path / "missing-codex"),
+    }
+
+    result = refresh_runtime_env(repo_root, environ=env, home=home)
+
+    path_parts = env["PATH"].split(os.pathsep)
+    assert path_parts[:4] == [str(venv_bin), str(node_bin), str(local_bin), str(go_bin)]
+    assert env["CODEX_BIN"] == str(local_bin / codex_name)
+    assert env["DONZO_GO_BIN"] == str(go_bin / go_name)
+    assert result["defaults_set"]["CODEX_BIN"] == str(local_bin / codex_name)
+    assert result["defaults_set"]["DONZO_GO_BIN"] == str(go_bin / go_name)
 
 
 def test_tool_matrix_reports_required_and_optional_tools() -> None:

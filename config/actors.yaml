@@ -1,0 +1,48 @@
+actors:
+  - id: user_A
+    role: org_admin
+    tenant: org_17
+    session_ref: vault://sessions/user_A
+    owns:
+      invoice:
+        - invoice_884
+      project:
+        - project_771
+      file:
+        - file_991
+
+  - id: member_A
+    role: org_member
+    tenant: org_17
+    session_ref: vault://sessions/member_A
+    relationships:
+      - subject: member_A
+        object: user_A
+        relation: same_tenant_lower_privilege
+
+  - id: user_B
+    role: normal_user
+    tenant: org_18
+    session_ref: vault://sessions/user_B
+    relationships:
+      - subject: user_B
+        object: invoice_884
+        relation: must_not_access
+
+  - id: anonymous
+    role: anonymous
+    tenant: null
+    session_ref: none
+
+relationships:
+  - subject: user_B
+    object: invoice_884
+    relation: must_not_access
+
+  - subject: member_A
+    action: change_member_role
+    relation: must_not_perform
+
+  - subject: anonymous
+    object: file_991
+    relation: must_not_access

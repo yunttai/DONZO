@@ -6,11 +6,13 @@ from donzo.models import stable_id
 
 ORACLE_STATUSES = {
     "confirmed",
+    "probable",
     "not_reproducible",
     "needs_more_evidence",
     "expected_behavior",
     "false_positive",
     "out_of_scope",
+    "blocked_by_safety_policy",
     "duplicate_candidate",
 }
 

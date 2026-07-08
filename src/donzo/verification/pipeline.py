@@ -861,6 +861,8 @@ def indeterminate_probe_reason(probe: ProbeResult) -> str:
         return "origin_timeout_cached"
     if is_timeout_signature(signature):
         return "probe_timeout"
+    if signature.startswith("tls_error:"):
+        return "probe_tls_error"
     if signature.startswith("network_error:"):
         return "probe_network_error"
     if signature.startswith("invalid_url:"):

@@ -32,6 +32,8 @@ CONNECT_IN_PROGRESS_ERRORS = {
     errno.EWOULDBLOCK,
     getattr(errno, "WSAEINPROGRESS", errno.EINPROGRESS),
     getattr(errno, "WSAEWOULDBLOCK", errno.EWOULDBLOCK),
+    10035,  # WSAEWOULDBLOCK on platforms where errno does not expose Winsock constants.
+    10036,  # WSAEINPROGRESS on platforms where errno does not expose Winsock constants.
 }
 
 
@@ -118,11 +120,15 @@ def probe_url(url: str, *, config: ScopeConfig, method: str = "GET") -> ProbeRes
             error_signature = "timeout"
             response_info = None
             break
+        except ssl.SSLError as exc:
+            error_signature = f"tls_error:{type(exc).__name__}"
+            response_info = None
+            break
         except ValueError as exc:
             error_signature = f"invalid_url:{exc}"
             response_info = None
             break
-        except (OSError, ssl.SSLError) as exc:
+        except OSError as exc:
             error_signature = f"network_error:{type(exc).__name__}"
             response_info = None
             break

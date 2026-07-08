@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import traceback
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -50,6 +51,8 @@ from donzo.clustering import cluster_records
 from donzo.config import load_scope_config
 from donzo.dedupe import dedupe_records
 from donzo.evidence import write_evidence_notes
+from donzo.fuzzing import build_fuzz_artifacts, write_fuzz_artifacts
+from donzo.fuzzing.feedback_graph import build_fuzz_feedback_graph
 from donzo.llm_triage.agent_interfaces import build_agent_interfaces, build_deterministic_agent_runs
 from donzo.llm_triage.agent_outputs import build_agent_output_scaffolds
 from donzo.llm_triage.drivers.base import LLMCallError
@@ -70,6 +73,7 @@ from donzo.normalize.artifacts import (
     normalize_httpx_records,
 )
 from donzo.oracles.evidence_model import build_evidence_index
+from donzo.oracles.fuzz_engine import evaluate_fuzz_oracle_results
 from donzo.oracles.oracle_evaluator import evaluate_oracle_results
 from donzo.oracles.oracle_templates import build_oracle_templates
 from donzo.parameters import build_parameters_from_endpoints
@@ -78,6 +82,11 @@ from donzo.planning.test_plans import build_safe_manual_test_plans
 from donzo.policy import build_policy_report
 from donzo.ranking import rank_records
 from donzo.recon.plan import build_recon_plan
+from donzo.redteam import (
+    execute_redteam_requests,
+    load_actor_session_manager,
+    load_redteam_scope_guard,
+)
 from donzo.reporting.markdown import render_markdown_report
 from donzo.reporting.regression_case import build_regression_cases
 from donzo.reporting.report_draft import build_report_drafts
@@ -89,6 +98,7 @@ from donzo.review import (
     render_verification_debug_markdown,
     write_review_artifacts,
 )
+from donzo.runtime_env import refresh_runtime_env
 from donzo.scope import ScopeDecision
 from donzo.state import transition_run_state, write_run_state
 from donzo.storage.jsonl import load_text_lines, write_json, write_jsonl
@@ -1106,6 +1116,307 @@ def cmd_oracle_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fuzz_plan(args: argparse.Namespace) -> int:
+    config = load_scope_config(args.config)
+    report = build_policy_report(config, allow_risky=args.allow_risky)
+    if not report.valid:
+        _print_json({"valid": False, "policy": report.to_dict()})
+        return 2
+    api_endpoint_models = load_json_records(args.api_endpoints)
+    parameter_classifications = (
+        load_json_records(args.parameter_classifications) if args.parameter_classifications else []
+    )
+    schema_diffs = load_json_records(args.schema_diffs) if args.schema_diffs else []
+    actor_model = build_actor_model(load_actor_records(args.actors or []))
+    artifacts = build_fuzz_artifacts(
+        api_endpoint_models=api_endpoint_models,
+        parameter_classifications=parameter_classifications,
+        schema_diffs=schema_diffs,
+        actor_model=actor_model,
+    )
+    write_fuzz_artifacts(args.output, artifacts)
+    _print_json(
+        {
+            "planned": True,
+            "policy": report.to_dict(),
+            "fuzz_candidate_count": len(artifacts["fuzz_candidates"]),
+            "fuzz_plan_count": len(artifacts["fuzz_plan"]),
+            "safe_probe_count": len(artifacts["safe_probes"]),
+            "oracle_template_count": len(artifacts["oracle_templates"]),
+            "output": str(args.output),
+            "default_mode": "plan_only",
+        }
+    )
+    return 0
+
+
+def cmd_fuzz_evaluate(args: argparse.Namespace) -> int:
+    fuzz_plans = load_json_records(args.fuzz_plan)
+    baseline_results = load_json_records(args.baseline_results) if args.baseline_results else []
+    fuzz_results = load_json_records(args.fuzz_results) if args.fuzz_results else []
+    oast_interactions = load_json_records(args.oast_interactions) if args.oast_interactions else []
+    state_readback_results = (
+        load_json_records(args.state_readback_results) if args.state_readback_results else []
+    )
+    artifacts = evaluate_fuzz_oracle_results(
+        fuzz_plans,
+        baseline_results=baseline_results,
+        fuzz_results=fuzz_results,
+        oast_interactions=oast_interactions,
+        state_readback_results=state_readback_results,
+        mode=args.mode,
+        oast_enabled=args.enable_oast,
+    )
+    write_jsonl(args.output / "analysis" / "oracle-verdicts.jsonl", artifacts["oracle_verdicts"])
+    write_jsonl(
+        args.output / "analysis" / "false-positive-analysis.jsonl",
+        artifacts["false_positive_analysis"],
+    )
+    write_jsonl(
+        args.output / "reports" / "confirmed-findings.jsonl", artifacts["confirmed_findings"]
+    )
+    write_jsonl(args.output / "findings.jsonl", artifacts["confirmed_findings"])
+    write_jsonl(args.output / "reports" / "regression-cases.jsonl", artifacts["regression_cases"])
+    counts: dict[str, int] = {}
+    for result in artifacts["oracle_verdicts"]:
+        status = str(result.get("verdict") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+    _print_json(
+        {
+            "evaluated": True,
+            "fuzz_plan_count": len(fuzz_plans),
+            "status_counts": counts,
+            "confirmed_finding_count": len(artifacts["confirmed_findings"]),
+            "regression_case_count": len(artifacts["regression_cases"]),
+            "output": str(args.output),
+        }
+    )
+    return 0
+
+
+REDTEAM_PLACEHOLDER_JSONL = {
+    "planning/fuzz-plan.jsonl",
+    "planning/probe-plan.jsonl",
+    "execution/baseline-results.jsonl",
+    "execution/probe-results.jsonl",
+    "execution/oast-interactions.jsonl",
+    "execution/readback-results.jsonl",
+    "execution/blocked-requests.jsonl",
+    "execution/evidence.jsonl",
+    "analysis/oracle-verdicts.jsonl",
+    "reports/confirmed-findings.jsonl",
+    "reports/regression-cases.jsonl",
+}
+
+
+def cmd_redteam_init(args: argparse.Namespace) -> int:
+    output = args.output
+    output.mkdir(parents=True, exist_ok=True)
+    config_dir = output / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    copy_text_file(args.scope, config_dir / "scope.yaml")
+    if args.engagement:
+        copy_text_file(args.engagement, config_dir / "engagement.yaml")
+    if args.actors:
+        copy_text_file(args.actors, config_dir / "actors.yaml")
+
+    guard = load_redteam_scope_guard(
+        args.scope,
+        engagement_path=args.engagement,
+        run_dir=output,
+    )
+    actors = load_actor_session_manager(args.actors)
+    mode = args.mode or guard.engagement.mode or "redteam"
+    preflight = guard.preflight(mode=mode, actors_present=actors.has_actors)
+    write_json(output / "config" / "scope-guard.json", guard.to_dict())
+    write_json(output / "config" / "actors-summary.json", actors.summary())
+    write_redteam_placeholders(output)
+    _print_json(
+        {
+            "initialized": True,
+            "ready": not preflight,
+            "mode": mode,
+            "preflight_reasons": preflight,
+            "output": str(output),
+            "kill_switch_path": str(guard.kill_switch_path) if guard.kill_switch_path else None,
+        }
+    )
+    return 0 if not preflight else 2
+
+
+def cmd_redteam_check(args: argparse.Namespace) -> int:
+    run_dir = args.run
+    scope_path = args.scope or (run_dir / "config" / "scope.yaml" if run_dir else None)
+    actors_path = args.actors or (run_dir / "config" / "actors.yaml" if run_dir else None)
+    engagement_path = args.engagement or (
+        run_dir / "config" / "engagement.yaml"
+        if run_dir and (run_dir / "config" / "engagement.yaml").exists()
+        else None
+    )
+    if not scope_path:
+        _print_json(
+            {
+                "allowed": False,
+                "status": "blocked_by_scope",
+                "reasons": ["scope_yaml_missing"],
+            }
+        )
+        return 2
+    guard = load_redteam_scope_guard(scope_path, engagement_path=engagement_path, run_dir=run_dir)
+    actors = load_actor_session_manager(actors_path)
+    request = {
+        "method": args.method,
+        "url": args.url,
+        "vulnerability_class": args.vulnerability_class,
+        "actor": args.actor,
+    }
+    decision = guard.evaluate_request(
+        request,
+        mode=args.mode,
+        actors_present=actors.has_actors,
+    ).to_dict()
+    actor_reasons = actors.validate_for_class(args.vulnerability_class)
+    if actor_reasons:
+        decision["allowed"] = False
+        decision["status"] = "blocked_by_scope"
+        decision["reasons"].extend(actor_reasons)
+    _print_json(decision)
+    return 0 if decision["allowed"] else 2
+
+
+def cmd_redteam_run(args: argparse.Namespace) -> int:
+    run_dir = args.run
+    output = args.output or run_dir
+    if output is None:
+        _print_json({"executed": False, "error": "--output or --run is required"})
+        return 2
+    scope_path = args.scope or (run_dir / "config" / "scope.yaml" if run_dir else None)
+    actors_path = args.actors or (run_dir / "config" / "actors.yaml" if run_dir else None)
+    engagement_path = args.engagement or (
+        run_dir / "config" / "engagement.yaml"
+        if run_dir and (run_dir / "config" / "engagement.yaml").exists()
+        else None
+    )
+    requests_path = args.requests or (
+        run_dir / "planning" / "probe-plan.jsonl" if run_dir else None
+    )
+    if not scope_path:
+        _print_json({"executed": False, "error": "scope_yaml_missing"})
+        return 2
+    if not requests_path:
+        _print_json({"executed": False, "error": "requests_missing"})
+        return 2
+    if args.execute and args.mode not in {"redteam", "lab"}:
+        _print_json(
+            {
+                "executed": False,
+                "mode": args.mode,
+                "error": "execute_requires_redteam_or_lab_mode",
+            }
+        )
+        return 2
+
+    guard = load_redteam_scope_guard(scope_path, engagement_path=engagement_path, run_dir=output)
+    apply_redteam_limit_overrides(guard, args)
+    actors = load_actor_session_manager(actors_path)
+    preflight = guard.preflight(mode=args.mode, actors_present=actors.has_actors)
+    if args.mode == "redteam" and preflight:
+        write_jsonl(
+            output / "execution" / "blocked-requests.jsonl",
+            [{"status": "blocked_by_scope", "reasons": preflight}],
+        )
+        _print_json({"executed": False, "mode": args.mode, "preflight_reasons": preflight})
+        return 2
+
+    requests = load_json_records(requests_path)
+    artifacts = execute_redteam_requests(
+        requests,
+        guard=guard,
+        actor_sessions=actors,
+        mode=args.mode,
+        execute=args.execute,
+    )
+    write_jsonl(output / "execution" / "baseline-results.jsonl", artifacts["baseline_results"])
+    write_jsonl(output / "execution" / "probe-results.jsonl", artifacts["probe_results"])
+    write_jsonl(output / "execution" / "readback-results.jsonl", artifacts["readback_results"])
+    write_jsonl(output / "execution" / "blocked-requests.jsonl", artifacts["blocked_requests"])
+    write_jsonl(output / "execution" / "evidence.jsonl", artifacts["evidence"])
+    feedback_graph = build_fuzz_feedback_graph(
+        artifacts["baseline_results"] + artifacts["probe_results"] + artifacts["readback_results"]
+    )
+    write_json(output / "analysis" / "feedback-graph.json", feedback_graph)
+    _print_json(
+        {
+            "executed": args.execute,
+            "mode": args.mode,
+            "request_count": len(requests),
+            "baseline_result_count": len(artifacts["baseline_results"]),
+            "probe_result_count": len(artifacts["probe_results"]),
+            "readback_result_count": len(artifacts["readback_results"]),
+            "blocked_count": len(artifacts["blocked_requests"]),
+            "evidence_count": len(artifacts["evidence"]),
+            "output": str(output),
+        }
+    )
+    return 0
+
+
+def write_redteam_placeholders(output: Path) -> None:
+    for relative_path in sorted(REDTEAM_PLACEHOLDER_JSONL):
+        write_jsonl(output / relative_path, [])
+    write_json(
+        output / "analysis" / "feedback-graph.json",
+        {"nodes": [], "edges": [], "summary": {"feedback_count": 0}},
+    )
+    drafts_dir = output / "reports" / "report-drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+
+
+def copy_text_file(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def apply_redteam_limit_overrides(guard: Any, args: argparse.Namespace) -> None:
+    if args.max_requests is not None:
+        guard.limits = replace(guard.limits, max_total_requests=args.max_requests, present=True)
+    if args.rate_limit:
+        guard.limits = replace(
+            guard.limits,
+            max_rps=parse_rate_limit(args.rate_limit),
+            present=True,
+        )
+
+
+def parse_rate_limit(value: str) -> float:
+    text = value.strip().lower().replace("requests/second", "").replace("rps", "")
+    return float(text)
+
+
+def add_redteam_common_args(
+    parser: argparse.ArgumentParser,
+    *,
+    requests: bool,
+    output: bool,
+) -> None:
+    parser.add_argument("--run", type=Path)
+    parser.add_argument("--scope", type=Path)
+    parser.add_argument("--engagement", type=Path)
+    parser.add_argument("--actors", type=Path)
+    parser.add_argument(
+        "--mode",
+        choices=["plan_only", "assisted", "redteam", "lab"],
+        default="assisted",
+    )
+    if requests:
+        parser.add_argument("--requests", type=Path)
+        parser.add_argument("--execute", action="store_true")
+        parser.add_argument("--max-requests", type=int)
+        parser.add_argument("--rate-limit", default="")
+    if output:
+        parser.add_argument("-o", "--output", type=Path)
+
+
 def cmd_report_from_oracle(args: argparse.Namespace) -> int:
     oracle_results = load_json_records(args.oracle_results)
     test_plans = load_json_records(args.test_plans) if args.test_plans else []
@@ -1337,6 +1648,12 @@ def cmd_run_fixture(args: argparse.Namespace) -> int:
         actor_model=actor_model,
     )
     oracle_templates = build_oracle_templates(safe_manual_test_plans)
+    fuzz_artifacts = build_fuzz_artifacts(
+        api_endpoint_models=api_endpoint_models,
+        parameter_classifications=parameter_classifications,
+        schema_diffs=schema_diffs,
+        actor_model=actor_model,
+    )
     agent_interfaces = build_agent_interfaces()
     agent_runs = build_deterministic_agent_runs(
         api_endpoint_models=api_endpoint_models,
@@ -1437,6 +1754,7 @@ def cmd_run_fixture(args: argparse.Namespace) -> int:
     write_jsonl(args.output / "business-mutation-plans.jsonl", business_mutation_plans)
     write_jsonl(args.output / "manual-test-plans.jsonl", safe_manual_test_plans)
     write_jsonl(args.output / "oracle-templates.jsonl", oracle_templates)
+    write_fuzz_artifacts(args.output, fuzz_artifacts)
     write_json(args.output / "agent-interfaces.json", agent_interfaces)
     write_jsonl(args.output / "agent-runs.jsonl", agent_runs)
     write_jsonl(args.output / "llm-agent-outputs.jsonl", llm_agent_outputs)
@@ -1497,6 +1815,7 @@ def cmd_run_fixture(args: argparse.Namespace) -> int:
             "business_mutation_plans": business_mutation_plans,
             "safe_manual_test_plans": safe_manual_test_plans,
             "oracle_templates": oracle_templates,
+            "fuzz_artifacts": fuzz_artifacts,
             "agent_interfaces": agent_interfaces,
             "agent_runs": agent_runs,
             "llm_agent_outputs": llm_agent_outputs,
@@ -1542,6 +1861,8 @@ def cmd_run_fixture(args: argparse.Namespace) -> int:
         "business_mutation_plan_count": len(business_mutation_plans),
         "safe_manual_test_plan_count": len(safe_manual_test_plans),
         "oracle_template_count": len(oracle_templates),
+        "fuzz_plan_count": len(fuzz_artifacts["fuzz_plan"]),
+        "safe_fuzz_probe_count": len(fuzz_artifacts["safe_probes"]),
         "agent_run_count": len(agent_runs),
         "llm_agent_output_count": len(llm_agent_outputs),
         "param_count": len(params),
@@ -1590,6 +1911,8 @@ def cmd_run_fixture(args: argparse.Namespace) -> int:
         "business_mutation_plans": len(business_mutation_plans),
         "safe_manual_test_plans": len(safe_manual_test_plans),
         "oracle_templates": len(oracle_templates),
+        "fuzz_plans": len(fuzz_artifacts["fuzz_plan"]),
+        "safe_fuzz_probes": len(fuzz_artifacts["safe_probes"]),
         "agent_runs": len(agent_runs),
         "llm_agent_outputs": len(llm_agent_outputs),
         "port_services": 0,
@@ -1640,6 +1963,8 @@ def cmd_run_fixture(args: argparse.Namespace) -> int:
             "business_mutation_plans": len(business_mutation_plans),
             "safe_manual_test_plans": len(safe_manual_test_plans),
             "oracle_templates": len(oracle_templates),
+            "fuzz_plans": len(fuzz_artifacts["fuzz_plan"]),
+            "safe_fuzz_probes": len(fuzz_artifacts["safe_probes"]),
             "agent_runs": len(agent_runs),
             "llm_agent_outputs": len(llm_agent_outputs),
             "port_services": 0,
@@ -2480,6 +2805,87 @@ def build_parser() -> argparse.ArgumentParser:
     oracle_evaluate_parser.add_argument("--evidence-output", type=Path)
     oracle_evaluate_parser.set_defaults(func=cmd_oracle_evaluate)
 
+    fuzz_parser = subparsers.add_parser(
+        "fuzz",
+        help="Offline fuzz planning and oracle evaluation commands",
+    )
+    fuzz_subparsers = fuzz_parser.add_subparsers(dest="fuzz_command", required=True)
+    fuzz_plan_parser = fuzz_subparsers.add_parser(
+        "plan",
+        help="Generate safe fuzz plans, probes, and oracle templates from scoped API models",
+    )
+    fuzz_plan_parser.add_argument("-c", "--config", type=Path, required=True)
+    fuzz_plan_parser.add_argument("--api-endpoints", type=Path, required=True)
+    fuzz_plan_parser.add_argument("--parameter-classifications", type=Path)
+    fuzz_plan_parser.add_argument("--schema-diffs", type=Path)
+    fuzz_plan_parser.add_argument("--actors", type=Path, action="append")
+    fuzz_plan_parser.add_argument("-o", "--output", type=Path, required=True)
+    fuzz_plan_parser.add_argument("--allow-risky", action="store_true")
+    fuzz_plan_parser.set_defaults(func=cmd_fuzz_plan)
+
+    fuzz_evaluate_parser = fuzz_subparsers.add_parser(
+        "evaluate",
+        help="Evaluate offline fuzz execution observations with vulnerability-specific oracles",
+    )
+    fuzz_evaluate_parser.add_argument("--fuzz-plan", type=Path, required=True)
+    fuzz_evaluate_parser.add_argument("--baseline-results", type=Path)
+    fuzz_evaluate_parser.add_argument("--fuzz-results", type=Path)
+    fuzz_evaluate_parser.add_argument("--oast-interactions", type=Path)
+    fuzz_evaluate_parser.add_argument("--state-readback-results", type=Path)
+    fuzz_evaluate_parser.add_argument(
+        "--mode",
+        choices=["plan_only", "manual_assist", "controlled", "live"],
+        default="plan_only",
+    )
+    fuzz_evaluate_parser.add_argument("--enable-oast", action="store_true")
+    fuzz_evaluate_parser.add_argument("-o", "--output", type=Path, required=True)
+    fuzz_evaluate_parser.set_defaults(func=cmd_fuzz_evaluate)
+
+    redteam_parser = subparsers.add_parser(
+        "redteam",
+        help="Scope-enforced authorized red-team validation commands",
+    )
+    redteam_subparsers = redteam_parser.add_subparsers(dest="redteam_command", required=True)
+
+    redteam_init_parser = redteam_subparsers.add_parser(
+        "init",
+        help="Initialize a guarded red-team run directory from scope and actor config",
+    )
+    redteam_init_parser.add_argument("--scope", type=Path, required=True)
+    redteam_init_parser.add_argument("--engagement", type=Path)
+    redteam_init_parser.add_argument("--actors", type=Path)
+    redteam_init_parser.add_argument("-o", "--output", type=Path, required=True)
+    redteam_init_parser.add_argument(
+        "--mode",
+        choices=["plan_only", "assisted", "redteam", "lab"],
+    )
+    redteam_init_parser.set_defaults(func=cmd_redteam_init)
+
+    redteam_check_parser = redteam_subparsers.add_parser(
+        "check",
+        help="Evaluate one request against Scope Guard without sending it",
+    )
+    add_redteam_common_args(redteam_check_parser, requests=False, output=False)
+    redteam_check_parser.add_argument("--url", required=True)
+    redteam_check_parser.add_argument("--method", default="GET")
+    redteam_check_parser.add_argument("--class", dest="vulnerability_class", default="")
+    redteam_check_parser.add_argument("--actor", default="")
+    redteam_check_parser.set_defaults(func=cmd_redteam_check)
+
+    redteam_run_parser = redteam_subparsers.add_parser(
+        "run",
+        help="Execute operator-selected requests behind Scope Guard",
+    )
+    add_redteam_common_args(redteam_run_parser, requests=True, output=True)
+    redteam_run_parser.set_defaults(func=cmd_redteam_run)
+
+    redteam_run_alias_parser = subparsers.add_parser(
+        "redteam-run",
+        help="Alias for redteam run",
+    )
+    add_redteam_common_args(redteam_run_alias_parser, requests=True, output=True)
+    redteam_run_alias_parser.set_defaults(func=cmd_redteam_run)
+
     feedback_parser = subparsers.add_parser(
         "feedback",
         help="Build manual execution feedback graph artifacts",
@@ -2603,6 +3009,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     load_project_dotenv()
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        refresh_runtime_env(Path.cwd())
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))
