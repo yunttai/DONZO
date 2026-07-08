@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/agent-interface.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "agent_interfaces", "policy"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "agent_interfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["agent", "input_artifacts", "output_contract", "safety"],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "enum": [
+              "api_agent",
+              "parameter_agent",
+              "dependency_agent",
+              "handler_agent",
+              "invariant_agent",
+              "test_plan_agent",
+              "oracle_agent",
+              "report_agent"
+            ]
+          },
+          "input_artifacts": {"type": "array", "items": {"type": "string"}},
+          "output_contract": {"type": "object"},
+          "expected_outputs": {"type": "array", "items": {"type": "string"}},
+          "safety": {"type": "object"}
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "deterministic_first",
+        "json_schema_validated",
+        "evidence_link_required",
+        "redaction_required",
+        "may_invent_endpoints_or_fields"
+      ],
+      "properties": {
+        "deterministic_first": {"const": true},
+        "json_schema_validated": {"const": true},
+        "evidence_link_required": {"const": true},
+        "redaction_required": {"const": true},
+        "may_invent_endpoints_or_fields": {"const": false}
+      }
+    }
+  }
+}

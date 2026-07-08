@@ -13,12 +13,16 @@ dist/
 
 .env
 *.log
+scope.club.yaml
+scope.local.yaml
 
 artifacts/logs/*
 artifacts/recon/*
 artifacts/evals/*
 artifacts/codex/*
 artifacts/llm/*
+output/*
+results/*
 findings/raw/*
 findings/normalized/*
 findings/reviewed/*

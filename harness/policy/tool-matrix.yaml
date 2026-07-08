@@ -1,0 +1,148 @@
+profiles:
+  fast:
+    required:
+      - subfinder
+      - dnsx
+      - httpx
+      - katana
+    optional:
+      - nuclei
+  normal:
+    required:
+      - subfinder
+      - dnsx
+      - httpx
+      - katana
+      - gau
+      - waybackurls
+    optional:
+      - naabu
+      - nuclei
+  deep:
+    required:
+      - subfinder
+      - dnsx
+      - httpx
+      - katana
+      - gau
+      - waybackurls
+    optional:
+      - amass
+      - bbot
+      - uncover
+      - alterx
+      - tlsx
+      - waymore
+      - paramspider
+      - kiterunner
+      - gitleaks
+      - trufflehog
+      - arjun
+      - gf
+      - qsreplace
+      - kxss
+      - naabu
+      - nuclei
+tools:
+  subfinder:
+    phase: passive_subdomain_discovery
+    policy_flag: passive_recon
+    network_facing: true
+  dnsx:
+    phase: dns_resolution
+    policy_flag: active_recon
+    network_facing: true
+  httpx:
+    phase: http_service_probe
+    policy_flag: active_recon
+    network_facing: true
+  katana:
+    phase: safe_crawling
+    policy_flag: crawling
+    network_facing: true
+  gau:
+    phase: archive_url_collection
+    policy_flag: archive_collection
+    network_facing: true
+  waybackurls:
+    phase: archive_url_collection
+    policy_flag: archive_collection
+    network_facing: true
+  naabu:
+    phase: optional_port_enrichment
+    policy_flag: port_scan
+    network_facing: true
+  nuclei:
+    phase: optional_safe_template_scan
+    policy_flag: nuclei_scan
+    network_facing: true
+  amass:
+    phase: passive_subdomain_discovery
+    policy_flag: passive_recon
+    network_facing: true
+    optional_in_deep: true
+  bbot:
+    phase: passive_subdomain_discovery
+    policy_flag: passive_recon
+    network_facing: true
+    optional_in_deep: true
+  uncover:
+    phase: passive_asset_discovery
+    policy_flag: passive_recon
+    network_facing: true
+    optional_in_deep: true
+  alterx:
+    phase: asset_expansion
+    policy_flag: passive_recon
+    network_facing: false
+    optional_in_deep: true
+  tlsx:
+    phase: tls_metadata_collection
+    policy_flag: active_recon
+    network_facing: true
+    optional_in_deep: true
+  waymore:
+    phase: archive_url_collection
+    policy_flag: archive_collection
+    network_facing: true
+    optional_in_deep: true
+  paramspider:
+    phase: parameter_url_collection
+    policy_flag: parameter_mining
+    network_facing: true
+    optional_in_deep: true
+  kiterunner:
+    phase: api_route_discovery
+    policy_flag: content_discovery
+    network_facing: true
+    optional_in_deep: true
+  gitleaks:
+    phase: local_secret_pattern_scan
+    policy_flag: passive_recon
+    network_facing: false
+    optional_in_deep: true
+  trufflehog:
+    phase: local_secret_pattern_scan
+    policy_flag: passive_recon
+    network_facing: false
+    optional_in_deep: true
+  arjun:
+    phase: parameter_discovery
+    policy_flag: parameter_mining
+    network_facing: true
+    optional_in_deep: true
+  gf:
+    phase: local_pattern_matching
+    policy_flag: passive_recon
+    network_facing: false
+    optional_in_deep: true
+  qsreplace:
+    phase: local_url_transform
+    policy_flag: passive_recon
+    network_facing: false
+    optional_in_deep: true
+  kxss:
+    phase: reflected_parameter_hinting
+    policy_flag: parameter_mining
+    network_facing: false
+    optional_in_deep: true

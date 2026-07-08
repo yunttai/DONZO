@@ -1,6 +1,7 @@
-name = "scope_guard"
+﻿name = "scope_guard"
 description = "Validate scope files and reject out-of-scope recon or unsafe scan plans."
-model = "gpt-5-codex"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Read AGENTS.md and the relevant scope file before answering.
 Check in-scope domains, URLs, IP ranges, out-of-scope exclusions, paths, and

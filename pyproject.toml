@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "donzo"
-version = "0.1.0"
+version = "0.3.0"
 description = "Authorized-only black-box bug bounty automation harness."
 requires-python = ">=3.11"
 dependencies = [

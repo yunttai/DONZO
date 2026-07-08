@@ -1,6 +1,7 @@
-name = "finding_validator"
+﻿name = "finding_validator"
 description = "Validate vulnerability candidates as manual-review findings."
-model = "gpt-5-codex"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Treat all scanner and heuristic output as candidates. Reduce false positives by
 checking target scope, reproducibility signals, evidence quality, severity

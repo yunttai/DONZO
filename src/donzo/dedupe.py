@@ -12,6 +12,18 @@ def dedupe_key(record: dict[str, Any]) -> tuple[str, str, str, str]:
             "parameter",
             str(record.get("name") or "").strip().lower(),
         )
+    if record.get("endpoint_id") or (
+        record.get("url") and record.get("method") and not record.get("candidate_type")
+    ):
+        target = str(record.get("url") or "").strip()
+        parsed = urlparse(target)
+        path = parsed.path.rstrip("/") or "/"
+        return (
+            parsed.netloc.lower(),
+            path.lower(),
+            "endpoint",
+            str(record.get("method") or "GET").strip().upper(),
+        )
     target = str(record.get("target") or record.get("url") or record.get("asset") or "")
     parsed = urlparse(target)
     path = parsed.path.rstrip("/") or "/"

@@ -1,6 +1,7 @@
-name = "report_writer"
+﻿name = "report_writer"
 description = "Draft evidence-first bug bounty reports for human review."
-model = "gpt-5-codex"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Write reports as candidate summaries, not confirmed exploit claims. Include
 scope, target, evidence paths, confidence, risk reasoning, manual verification

@@ -4,10 +4,52 @@ from typing import Any
 
 from donzo.models import Parameter
 
-IDOR_PARAMETERS = {"id", "user_id", "account_id", "order_id", "invoice_id", "file_id"}
-REDIRECT_PARAMETERS = {"next", "url", "redirect", "returnurl", "callback", "continue"}
-SSRF_PARAMETERS = {"url", "uri", "endpoint", "host", "domain", "callback", "webhook"}
-FILE_PARAMETERS = {"file", "path", "filename", "download", "template", "image"}
+IDOR_PARAMETERS = {
+    "id",
+    "user_id",
+    "account_id",
+    "order_id",
+    "invoice_id",
+    "file_id",
+    "document_id",
+    "team_id",
+    "org_id",
+    "organization_id",
+}
+REDIRECT_PARAMETERS = {
+    "next",
+    "next_url",
+    "url",
+    "redirect",
+    "redirect_uri",
+    "returnurl",
+    "return_url",
+    "callback",
+    "callback_url",
+    "continue",
+    "destination",
+}
+SSRF_PARAMETERS = {
+    "url",
+    "uri",
+    "endpoint",
+    "host",
+    "domain",
+    "callback",
+    "callback_url",
+    "webhook",
+    "feed",
+    "target",
+}
+FILE_PARAMETERS = {
+    "file",
+    "path",
+    "filename",
+    "download",
+    "template",
+    "image",
+    "attachment",
+}
 
 
 def build_parameters_from_endpoints(endpoints: list[dict[str, Any]]) -> list[dict[str, Any]]:

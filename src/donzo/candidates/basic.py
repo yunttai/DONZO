@@ -4,6 +4,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from donzo.models import Candidate
+from donzo.parameters import FILE_PARAMETERS, REDIRECT_PARAMETERS, SSRF_PARAMETERS
 
 
 def build_basic_candidates(endpoints: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -50,6 +51,37 @@ def candidates_for_endpoint(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             ).to_dict()
         )
+    if "source_map" in hints:
+        output.append(
+            Candidate(
+                candidate_type="SOURCE_MAP_EXPOSURE",
+                target=url,
+                severity="low",
+                confidence=0.5,
+                source=["deterministic_candidate_engine"],
+                reason=["JavaScript source map URL candidate is present"],
+                manual_verification=[
+                    "Confirm the source map is intentionally public before downloading it.",
+                    "Do not extract secrets or use discovered credentials.",
+                ],
+            ).to_dict()
+        )
+    if "admin_panel" in hints:
+        output.append(
+            Candidate(
+                candidate_type="ADMIN_PANEL",
+                target=url,
+                severity="medium",
+                confidence=0.5,
+                source=["deterministic_candidate_engine"],
+                reason=["Admin or developer tool fingerprint/path pattern is present"],
+                manual_verification=[
+                    "Confirm whether the admin/developer interface is intentionally public.",
+                    "Do not attempt login, brute force, or credential guessing.",
+                    "Review only exposed metadata and access-control expectations.",
+                ],
+            ).to_dict()
+        )
     if "object_resource" in hints or "object_id_parameter" in hints or object_id_path(url):
         output.append(
             Candidate(
@@ -69,7 +101,7 @@ def candidates_for_endpoint(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             ).to_dict()
         )
-    redirect_params = sorted(params & {"next", "url", "redirect", "returnurl", "callback"})
+    redirect_params = sorted(params & REDIRECT_PARAMETERS)
     if redirect_params:
         output.append(
             Candidate(
@@ -85,7 +117,7 @@ def candidates_for_endpoint(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             ).to_dict()
         )
-    ssrf_params = sorted(params & {"url", "uri", "endpoint", "host", "domain", "webhook"})
+    ssrf_params = sorted(params & SSRF_PARAMETERS)
     if ssrf_params:
         output.append(
             Candidate(
@@ -101,7 +133,7 @@ def candidates_for_endpoint(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             ).to_dict()
         )
-    file_params = sorted(params & {"file", "path", "filename", "download", "template", "image"})
+    file_params = sorted(params & FILE_PARAMETERS)
     if file_params:
         output.append(
             Candidate(

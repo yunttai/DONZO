@@ -84,6 +84,44 @@ FINDING_VERDICT_JSON_SCHEMA: dict[str, Any] = {
     },
 }
 
+CLUSTER_VERDICT_JSON_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://donzo.local/schemas/cluster-verdict.schema.json",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "cluster_verdict",
+        "priority",
+        "confidence",
+        "risk_score_adjustment",
+        "impact_assessment",
+        "manual_verification_required",
+        "manual_verification_steps",
+        "false_positive_reasons",
+        "not_allowed_actions",
+    ],
+    "properties": {
+        "cluster_verdict": {
+            "type": "string",
+            "enum": [
+                "confirmed_candidate",
+                "likely_true_positive",
+                "needs_manual_review",
+                "likely_false_positive",
+                "out_of_scope_or_not_allowed",
+            ],
+        },
+        "priority": {"type": "string", "enum": ["P0", "P1", "P2", "P3", "IGNORE"]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "risk_score_adjustment": {"type": "integer", "minimum": -100, "maximum": 100},
+        "impact_assessment": {"type": "string", "minLength": 1},
+        "manual_verification_required": {"type": "boolean"},
+        "manual_verification_steps": {"type": "array", "items": {"type": "string"}},
+        "false_positive_reasons": {"type": "array", "items": {"type": "string"}},
+        "not_allowed_actions": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
 CANDIDATE_GENERATION_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://donzo.local/schemas/candidate-generation.schema.json",

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://donzo.local/schemas/agent-run.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agent_run_id",
+    "agent",
+    "subject_type",
+    "verdict",
+    "confidence",
+    "summary",
+    "evidence_refs",
+    "observations",
+    "redacted",
+    "external_llm_called",
+    "policy"
+  ],
+  "properties": {
+    "agent_run_id": {"type": "string", "minLength": 1},
+    "agent": {
+      "type": "string",
+      "enum": [
+        "api_agent",
+        "parameter_agent",
+        "dependency_agent",
+        "handler_agent",
+        "invariant_agent",
+        "test_plan_agent",
+        "oracle_agent",
+        "report_agent"
+      ]
+    },
+    "subject_type": {"type": "string", "minLength": 1},
+    "verdict": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "summary": {"type": "string", "minLength": 1},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "observations": {"type": "array", "items": {"type": "string"}},
+    "redacted": {"const": true},
+    "external_llm_called": {"const": false},
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["no_endpoint_invention", "no_field_invention", "manual_review_required"],
+      "properties": {
+        "no_endpoint_invention": {"const": true},
+        "no_field_invention": {"const": true},
+        "manual_review_required": {"const": true}
+      }
+    }
+  }
+}

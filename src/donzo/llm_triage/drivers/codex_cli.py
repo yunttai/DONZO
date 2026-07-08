@@ -463,6 +463,13 @@ def build_codex_exec_args(
         args.append("--strict-config")
     if config.model and config.model != "default":
         args.extend(["--model", config.model])
+    if config.model_reasoning_effort:
+        args.extend(
+            [
+                "--config",
+                f'model_reasoning_effort="{config.model_reasoning_effort}"',
+            ]
+        )
     args.append("-")
     return args
 

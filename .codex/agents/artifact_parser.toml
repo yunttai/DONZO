@@ -1,6 +1,7 @@
-name = "artifact_parser"
+﻿name = "artifact_parser"
 description = "Parse raw recon artifacts into normalized JSON or JSONL records."
-model = "gpt-5-codex"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Use schemas under harness/schemas. Preserve raw source fields in metadata when
 possible. Redact secrets before writing normalized output. Reject records that

@@ -13,6 +13,7 @@ from donzo.llm_triage.drivers.openai_api import OpenAIDriver
 from donzo.llm_triage.evidence_pack import redact_value
 from donzo.llm_triage.schema import (
     CANDIDATE_GENERATION_JSON_SCHEMA,
+    CLUSTER_VERDICT_JSON_SCHEMA,
     REPORT_DRAFT_JSON_SCHEMA,
 )
 
@@ -167,6 +168,52 @@ def run_report_draft(
             "Removed Items, Appendix. Use neutral candidate language. Include evidence "
             "paths and safe manual verification steps. Do not paste secrets or claim "
             "confirmed exploitation without evidence."
+        ),
+    )
+
+
+def run_cluster_triage(
+    record: dict[str, Any],
+    *,
+    config: ScopeConfig,
+    llm_config: LLMConfig,
+    driver_name: str = "auto",
+    allow_external_llm: bool = False,
+) -> MandatoryStageResult:
+    stage = "cluster_triage"
+    selected = selected_driver_name(llm_config, driver_name)
+    submitted, excluded = split_in_scope_records(config, [record])
+    if not submitted:
+        return MandatoryStageResult(
+            stage=stage,
+            llm_required=llm_config.required,
+            fail_closed=llm_config.fail_closed,
+            driver=selected,
+            llm_status="not_submitted",
+            input_count=1,
+            submitted_count=0,
+            output=None,
+            error="cluster evidence pack is out of scope or missing representative target",
+        )
+    return run_structured_stage(
+        stage=stage,
+        records=submitted,
+        excluded=excluded,
+        config=config,
+        llm_config=llm_config,
+        driver_name=driver_name,
+        allow_external_llm=allow_external_llm,
+        output_schema=CLUSTER_VERDICT_JSON_SCHEMA,
+        prompt=(
+            "Triage exactly one DONZO cluster evidence pack for manual review. "
+            "Return one JSON object matching the schema. Treat the cluster as a candidate, "
+            "not a confirmed vulnerability. The pack may contain verified, unverified, or "
+            "deterministically filtered raw candidates, or passive technology/API "
+            "inference context. Prefer likely_false_positive or IGNORE for soft-404, "
+            "redirect-only, common error, auth-flow, weak fingerprint, or weak "
+            "path-pattern evidence. Do not propose exploitation, destructive testing, "
+            "credential attacks, secret validation, or backend claims beyond observed "
+            "evidence."
         ),
     )
 
@@ -343,4 +390,12 @@ def build_stage_payload(
 
 
 def record_target(record: dict[str, Any]) -> str:
-    return str(record.get("target") or record.get("url") or record.get("matched-at") or "")
+    direct = str(record.get("target") or record.get("url") or record.get("matched-at") or "")
+    if direct:
+        return direct
+    cluster = record.get("cluster") if isinstance(record.get("cluster"), dict) else {}
+    representative = str(cluster.get("representative_target") or "")
+    if representative:
+        return representative
+    targets = cluster.get("targets") if isinstance(cluster.get("targets"), list) else []
+    return str(targets[0]) if targets else ""

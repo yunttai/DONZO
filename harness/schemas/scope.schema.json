@@ -54,6 +54,67 @@
         "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 }
       },
       "additionalProperties": true
+    },
+    "authenticated_crawl": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "header_env": { "type": "string" },
+        "cookie_env": { "type": "string" },
+        "allowed_domains": { "type": "array", "items": { "type": "string" } },
+        "pass_to_tools": { "type": "boolean" },
+        "pass_to_probes": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "fail_closed": { "type": "boolean" },
+        "network_probe": { "type": "boolean" },
+        "probe": {
+          "type": "object",
+          "properties": {
+            "max_requests_per_candidate": { "type": "integer", "minimum": 1 },
+            "max_network_probes": { "type": "integer", "minimum": 0 },
+            "origin_timeout_threshold": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "allowed_methods": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["HEAD", "GET", "OPTIONS"] }
+            },
+            "allow_post": { "type": "boolean", "const": false },
+            "follow_redirects": { "type": "boolean" },
+            "max_redirects": { "type": "integer", "minimum": 0, "maximum": 5 },
+            "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
+            "max_body_bytes": { "type": "integer", "minimum": 1024 },
+            "redact_sensitive_data": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        },
+        "soft404": { "type": "object", "additionalProperties": true },
+        "api_docs": { "type": "object", "additionalProperties": true },
+        "sourcemap": {
+          "type": "object",
+          "properties": {
+            "store_full_map": { "type": "boolean", "const": false },
+            "store_sources_content": { "type": "boolean", "const": false }
+          },
+          "additionalProperties": true
+        },
+        "graphql": {
+          "type": "object",
+          "properties": {
+            "safe_query_test": { "type": "boolean", "const": false },
+            "introspection_test": { "type": "boolean", "const": false }
+          },
+          "additionalProperties": true
+        },
+        "bola_filter": { "type": "object", "additionalProperties": true },
+        "redirect_filter": { "type": "object", "additionalProperties": true },
+        "cluster": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true

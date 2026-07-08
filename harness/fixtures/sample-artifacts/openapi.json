@@ -1,0 +1,29 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Example API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/orders/{order_id}": {
+      "get": {
+        "parameters": [
+          { "name": "expand", "in": "query" }
+        ]
+      }
+    },
+    "/graphql": {
+      "post": {}
+    },
+    "/files": {
+      "get": {
+        "parameters": [
+          { "name": "filename", "in": "query" }
+        ]
+      }
+    },
+    "/checkout": {
+      "get": {}
+    }
+  }
+}

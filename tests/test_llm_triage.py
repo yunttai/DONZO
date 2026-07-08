@@ -37,15 +37,11 @@ def test_mandatory_llm_fails_closed_without_external_call() -> None:
 def test_mandatory_llm_result_matches_schema() -> None:
     config = load_scope_config(Path("scope.example.yaml"))
     finding = json.loads(
-        Path("harness/fixtures/sample-artifacts/swagger-finding.json").read_text(
-            encoding="utf-8"
-        )
+        Path("harness/fixtures/sample-artifacts/swagger-finding.json").read_text(encoding="utf-8")
     )
     result = run_tribunal(finding, config=config, llm_config=config.llm)
     schema = json.loads(
-        Path("harness/schemas/llm-tribunal-result.schema.json").read_text(
-            encoding="utf-8"
-        )
+        Path("harness/schemas/llm-tribunal-result.schema.json").read_text(encoding="utf-8")
     )
     errors = list(Draft202012Validator(schema).iter_errors(result.to_dict()))
     assert errors == []
@@ -139,6 +135,10 @@ def test_codex_cli_driver_builds_schema_constrained_exec_args() -> None:
     assert "--ignore-user-config" in args
     assert "--ignore-rules" in args
     assert "--strict-config" in args
+    assert "--model" in args
+    assert "gpt-5.5" in args
+    assert "--config" in args
+    assert 'model_reasoning_effort="xhigh"' in args
     assert args[-1] == "-"
 
 
@@ -161,6 +161,53 @@ def test_cli_candidate_generation_marks_llm_failed_without_external_call(capsys)
     assert result["result"]["driver"] == "codex_cli"
     assert result["result"]["llm_status"] == "failed"
     assert result["result"]["submitted_count"] == 1
+
+
+def test_cli_cluster_triage_marks_llm_failed_without_external_call(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    pack_path = tmp_path / "cluster-pack.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "stage": "cluster_triage",
+                "program": "example-bounty",
+                "cluster": {
+                    "cluster_id": "cluster-1",
+                    "cluster_type": "API_DOCS",
+                    "targets": ["https://api.example.com/swagger-ui/"],
+                },
+                "evidence_summary": {
+                    "verified_count": 1,
+                    "representative_target": "https://api.example.com/swagger-ui/",
+                },
+                "safety_constraints": {
+                    "automatic_exploit": False,
+                    "destructive_testing": False,
+                    "secret_validation": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    code = main(
+        [
+            "clusters",
+            "triage",
+            "-c",
+            "scope.example.yaml",
+            "-i",
+            str(pack_path),
+        ]
+    )
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert code == 3
+    assert result["triaged"] is False
+    assert result["result"]["stage"] == "cluster_triage"
+    assert result["result"]["driver"] == "codex_cli"
+    assert result["result"]["llm_status"] == "failed"
 
 
 def test_cli_report_draft_marks_llm_failed_without_external_call(capsys) -> None:

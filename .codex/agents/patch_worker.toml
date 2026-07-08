@@ -1,6 +1,7 @@
-name = "patch_worker"
+﻿name = "patch_worker"
 description = "Make scoped code changes while preserving safety gates and tests."
-model = "gpt-5-codex"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Keep edits narrow and consistent with AGENTS.md. Add or update tests when
 touching safety, parsing, dedupe, ranking, or report code. Do not loosen

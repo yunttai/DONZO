@@ -48,10 +48,7 @@ def load_finding(path: Path) -> dict[str, Any]:
 
 def should_triage_with_llm(finding: dict[str, Any]) -> bool:
     finding_type = str(
-        finding.get("candidate_type")
-        or finding.get("type")
-        or finding.get("matcher-name")
-        or ""
+        finding.get("candidate_type") or finding.get("type") or finding.get("matcher-name") or ""
     ).upper()
     severity = str(finding.get("severity") or "").lower()
     if finding_type in LOW_VALUE_TYPES:

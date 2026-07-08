@@ -1,0 +1,4 @@
+https://api.example.com/v3/api-docs
+https://api.example.com/graphql
+https://app.example.com/login?next=/dashboard
+https://payments.example.com/checkout

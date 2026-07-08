@@ -1,6 +1,7 @@
-name = "security_reviewer"
+﻿name = "security_reviewer"
 description = "Review code and plans for security, scope, and safety regressions."
-model = "gpt-5-codex"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Prioritize findings over summaries. Look for command injection, path traversal,
 secret leakage, missing redaction, bypassed scope checks, unsafe network scans,

@@ -11,6 +11,19 @@
 - assets.jsonl
 - services.jsonl
 - endpoints.jsonl
+- traffic.jsonl
+- request-schemas.jsonl
+- response-schemas.jsonl
+- api-endpoints.jsonl
+- parameter-classification.jsonl
+- schema-diff.jsonl
+- api-dependency-graph.json
+- api-sequences.jsonl
+- state-transitions.jsonl
+- handler-hypotheses.jsonl
+- security-invariants.jsonl
+- manual-test-plans.jsonl
+- oracle-templates.jsonl
 - params.jsonl
 - candidates.jsonl
 - findings.jsonl
@@ -23,10 +36,71 @@
 
 # 1. 최종 전체 파이프라인
 
+## 1.1 현재 DONZO 구현 연결 상태
+
+```text
+deep 기본 실행 계획:
+subfinder
+  -> alterx / amass / bbot(passive) / uncover
+  -> derived/candidate_assets.txt
+  -> dnsx
+  -> tlsx
+  -> httpx
+  -> derived/live_urls.txt
+  -> katana
+  -> gau / waybackurls / waymore / paramspider
+  -> derived/archive_urls.txt
+  -> qsreplace / arjun(passive)
+  -> endpoint / parameter / API docs / GraphQL / sourcemap analyzer
+  -> optional HAR traffic ingest
+  -> request / response schema inference
+  -> unified api-endpoints model
+  -> parameter classification / schema diff
+  -> dependency graph / observed sequence model
+  -> handler hypothesis / security invariant generation
+  -> safe manual test plan / oracle template generation
+  -> gitleaks / trufflehog local derived artifact scan
+  -> candidate verification / filtering
+  -> rank / cluster / report
+
+policy-gated optional:
+- naabu: scan_policy.port_scan true 필요
+- nuclei: scan_policy.nuclei_scan true 필요
+- kiterunner: scan_policy.content_discovery true + 허용된 test_type 필요
+- kxss: scan_policy.content_discovery true + 허용된 test_type 필요
+- gf: 설치 확인은 수행하지만, 실제 패턴 실행은 사용자 홈의 gf pattern
+  디렉터리(~/.gf 또는 ~/.config/gf)가 준비되어야 함
+```
+
+`alterx`, `amass`, `bbot`, `uncover` 산출물은 단순 raw 저장으로 끝내지 않고
+scope-filtered `candidate_assets.txt`로 합쳐서 `dnsx` 입력으로 다시 들어간다.
+`waymore`, `paramspider`, `qsreplace`, `arjun` 산출물은 endpoint/parameter
+분석으로 흡수된다. `gitleaks`, `trufflehog`는 원본 비밀값을 보고서에 싣지
+않고 redacted `SECRET_EXPOSURE` 수동 검토 후보만 만든다.
+
+API 탐색은 추측 URL 목록을 그대로 "발견"으로 보지 않는다. 실행 모드에서는
+OpenAPI JSON/YAML schema 후보를 origin별 제한된 횟수로 GET 확인하고, 실제
+OpenAPI/Swagger 문서가 파싱될 때만 그 문서의 paths / methods / path
+parameters / query parameters / JSON 또는 form body fields를 endpoint와
+params artifact로 흡수한다. report의 `api-docs` 수는 verified API docs 또는
+파싱된 schema만 집계한다.
+
+HAR 기반 모델링은 `donzo ingest-har` 또는 `donzo run --har`로 들어온
+브라우저 traffic을 redaction한 뒤 `traffic.jsonl`, `request-schemas.jsonl`,
+`response-schemas.jsonl`로 저장한다. 이 관찰값은 `api-endpoints.jsonl`에
+병합되고, `parameter-classification.jsonl`, `schema-diff.jsonl`,
+`api-dependency-graph.json`, `handler-hypotheses.jsonl`,
+`security-invariants.jsonl`, `manual-test-plans.jsonl`,
+`oracle-templates.jsonl`까지 이어진다. 이 단계는 안전한 수동 검증 계획과
+판정 템플릿을 만들 뿐 자동 exploit이나 destructive mutation을 수행하지 않는다.
+
 ```text
 scope.yaml
    ↓
 [0] Scope / Policy Validator
+   ├─ mode / scope / out-of-scope validation
+   ├─ tool preflight
+   └─ rate/concurrency/timeout controls applied to supported recon commands
    ↓
 [1] Asset Discovery
    ├─ subfinder
@@ -84,6 +158,16 @@ scope.yaml
    ├─ subdomain takeover candidate
    ├─ GraphQL candidate
    └─ secret exposure candidate
+   ↓
+[8.5] Candidate Verification / Filtering
+   ├─ HTTP probe
+   ├─ API Docs verifier
+   ├─ Source Map verifier
+   ├─ GraphQL verifier
+   ├─ BOLA / IDOR false-positive filter
+   ├─ Soft-404 / redirect / common error filter
+   ├─ evidence enricher
+   └─ cluster evidence pack builder
    ↓
 [9] Controlled Scanner
    ├─ nuclei safe/deep policy
@@ -952,6 +1036,120 @@ services.jsonl
 
 ---
 
+## [8.5] Candidate Verification / Filtering Layer
+
+`Candidate Generator`와 `Risk Ranking` 사이에서 deterministic 검증을 수행한다.
+이 단계는 LLM이 판단하기 전에 후보가 실제로 존재하는지, common error page인지,
+auth flow 오탐인지, evidence가 충분한지 먼저 걸러내는 역할이다.
+
+### 병목 처리 기준
+
+DONZO는 `deep` 모드에서 외부 recon command 자체의 강제 timeout을 대부분 걸지
+않는다. 다만 verification HTTP probe는 별도 레이어이므로, 무한 대기 방지를
+위해 scope의 `verification.probe.timeout_seconds`를 사용한다.
+
+```yaml
+verification:
+  probe:
+    # 0 = 무제한. rate_limit.max_requests_per_second는 계속 적용된다.
+    max_network_probes: 0
+
+    # 0 = 같은 origin timeout cache 비활성화.
+    # 2 이상이면 timeout이 반복된 origin의 나머지 후보를 빠르게 skip한다.
+    origin_timeout_threshold: 0
+
+    # 개별 HTTP probe 최대 대기 시간. command timeout과 별개다.
+    timeout_seconds: 45
+```
+
+verification 결과는 다음처럼 분리한다.
+
+```text
+verified
+  실제 HTTP/body/schema/fingerprint 증거가 있어 후보로 유지
+
+needs_manual_review
+  증거가 약하거나 probe가 끝나지 않았지만 false positive로 확정할 수 없음
+  예: probe_budget_exhausted, origin_timeout_cached, probe_timeout,
+      probe_network_error, probe_invalid_url
+
+filtered_out
+  실제 응답 증거상 오탐으로 볼 수 있음
+  예: not_actual_api_doc, not_graphql, not_actual_sourcemap,
+      soft_404_common_error, auth_endpoint_not_bola
+```
+
+즉 timeout, budget exhausted, network error는 더 이상 “취약점 아님”으로
+확정하지 않는다. 이들은 `candidates-verified.jsonl`에 남고,
+`verification-summary.json`의 `unverified_reason_counts`로 집계된다.
+
+### 역할
+
+```text
+- API docs 후보가 실제 Swagger/OpenAPI/ReDoc인지 확인
+- source map 후보가 실제 valid source map JSON인지 확인
+- GraphQL 후보가 실제 GraphQL fingerprint를 갖는지 확인
+- login/signup/oauth/session/password endpoint를 BOLA/IDOR 후보에서 제거
+- soft-404, redirect-only, common error page 제거
+- 후보별 probe/evidence summary 생성
+- cluster 단위 LLM triage를 위한 evidence pack 생성
+```
+
+### 안전 정책
+
+```text
+- 기본 method는 HEAD/GET/OPTIONS만 허용
+- POST/PUT/PATCH/DELETE 금지
+- GraphQL introspection 기본 OFF
+- source map 전체 원문과 sourcesContent 기본 저장 금지
+- Cookie, Authorization header, token, secret은 evidence 저장 전 redaction
+- scope 밖 final URL redirect는 filtered_out 처리
+```
+
+### 출력
+
+```text
+output/candidates.jsonl                  # raw candidates
+output/candidates-verified.jsonl         # reviewable candidates
+output/candidates-filtered.jsonl         # filtered-out candidates
+output/verification-probes.jsonl
+output/soft404-baselines.jsonl
+output/verification-summary.json
+output/cluster-evidence-packs.jsonl
+output/cluster-evidence-packs/*.json
+```
+
+### 필터 사유
+
+```text
+auth_endpoint_not_bola
+missing_object_id
+not_actual_api_doc
+not_actual_sourcemap
+not_graphql
+soft_404_common_error
+login_redirect_only
+redirect_only
+redirect_final_url_out_of_scope
+out_of_scope
+```
+
+### Unverified 사유
+
+```text
+probe_not_completed
+probe_budget_exhausted
+origin_timeout_cached
+probe_timeout
+probe_network_error
+probe_invalid_url
+probe_error
+metadata_only_no_body
+no_probe_available
+```
+
+---
+
 ## [9] Controlled Scanner
 
 취약점 후보 스캔 단계.
@@ -1771,24 +1969,21 @@ llm:
 
 ## Current LLM Call Sites
 
-현재 구현된 실제 LLM 호출 지점은 다음 3개다.
+`donzo run`에서 자동으로 호출되는 LLM 단계는 현재 `cluster_triage`다.
+verification 이후 `llm-triage-input-packs.jsonl`에 1개 이상 pack이 있을 때만
+pack 단위로 Codex CLI driver를 호출한다. 이 파일은 reportable/reviewable
+cluster pack과 filtered raw candidate 재검토 pack을 함께 담는다.
 
 ```text
-1. candidate_generator
-   - 입력: endpoint/API/JS/parameter cluster JSON 또는 JSONL
-   - 호출 단위: 개별 URL이 아니라 batch/cluster
-   - 출력: manual-review candidate list
-
-2. finding_triage
-   - 입력: finding 1개
-   - 호출 단위: finding 1개
-   - 출력: FindingVerdict
-
-3. report_writer
-   - 입력: triaged/reviewable findings batch
-   - 호출 단위: report draft 1개
-   - 출력: Markdown draft JSON wrapper
+1. cluster_triage
+   - 입력: LLM triage input pack 1개
+   - 호출 단위: cluster 또는 filtered candidate recheck pack 1개
+   - 출력: ClusterVerdict
 ```
+
+`candidate_generator`, `finding_triage`, `report_writer`는 설계상 확장 단계이며,
+개별 CLI/skill/harness 작업으로 붙일 수 있지만 `donzo run`의 자동 호출 경로는
+아직 아니다.
 
 rule-based logic은 판단자가 아니라 Evidence Pack 생성, redaction, scope/safety
 filtering에만 사용한다. 외부 LLM verdict가 없으면 finding은 `llm_failed` 또는
@@ -1797,9 +1992,8 @@ filtering에만 사용한다. 외부 LLM verdict가 없으면 finding은 `llm_fa
 호출 횟수는 아래 원칙을 따른다.
 
 ```text
-candidate_generator: batch 1개당 보통 1회, schema 실패 시 최대 max_attempts
-finding_triage: finding 1개당 보통 1회, schema 실패 시 최대 max_attempts
-report_writer: report draft 1개당 보통 1회, schema 실패 시 최대 max_attempts
+cluster_triage: LLM triage input pack 1개당 보통 1회, schema 실패 시 최대 max_attempts
+llm-triage-input-packs.jsonl 비어 있음: 0회
 cache hit / out-of-scope / --allow-external-llm 없음: 0회
 ```
 

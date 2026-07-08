@@ -21,6 +21,8 @@ BOUNTY_LIKELIHOOD = {
     "PUBLIC_SWAGGER": 25,
     "GRAPHQL": 25,
     "GRAPHQL_INTROSPECTION": 25,
+    "ADMIN_PANEL": 22,
+    "SOURCE_MAP_EXPOSURE": 12,
     "SSRF": 20,
     "FILE_DISCLOSURE": 20,
     "OPEN_REDIRECT": 8,
@@ -38,12 +40,26 @@ def rank_record(record: dict[str, Any]) -> dict[str, Any]:
     candidate_type = str(record.get("candidate_type") or "").upper()
     confidence = float(record.get("confidence") or 0)
     evidence = record.get("evidence") if isinstance(record.get("evidence"), dict) else {}
+    verification = (
+        evidence.get("verification") if isinstance(evidence.get("verification"), dict) else {}
+    )
     score = SEVERITY_SCORE.get(severity, 0)
     score += int(confidence * 25)
     score += BOUNTY_LIKELIHOOD.get(candidate_type, 5)
     if evidence:
         score += 10
-    if str(record.get("verification_status") or "") in {"llm_failed", "llm_schema_invalid"}:
+    verification_status = str(record.get("verification_status") or "")
+    if verification_status == "verified":
+        score += 10
+    elif candidate_type in {"EXPOSED_API_DOCS", "GRAPHQL", "SOURCE_MAP_EXPOSURE"}:
+        score -= 20
+    if verification.get("schema_verified"):
+        score += 10
+    if verification.get("sensitive_path_hints"):
+        score += 5
+    if verification.get("has_sources_content"):
+        score += 8
+    if verification_status in {"llm_failed", "llm_schema_invalid", "filtered_out"}:
         score -= 100
     score = max(0, min(100, score))
     output["risk_score"] = score

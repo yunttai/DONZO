@@ -41,6 +41,37 @@ out_of_scope:
     - mass_exploitation
     - automatic_secret_validation
     - automatic_subdomain_takeover_claim
+    - aggressive_scanning
+    - intrusive_scanning
+    - content_fuzzing
+    - directory_bruteforce
+    - parameter_fuzzing
+    - object_id_enumeration
+    - auth_bypass_automation
+    - privilege_escalation_automation
+    - account_takeover
+    - credential_reuse
+    - token_replay
+    - cookie_replay
+    - secret_validation
+    - data_exfiltration
+    - pii_access
+    - sensitive_file_read
+    - database_dump
+    - oast_callback
+    - ssrf_callback_testing
+    - blind_xss_callback
+    - stored_xss_payloading
+    - sql_injection_payloading
+    - command_injection_payloading
+    - file_upload_exploit
+    - race_condition_stress
+    - graphql_batching_dos
+    - email_bombing
+    - sms_bombing
+    - notification_spam
+    - dependency_confusion
+    - third_party_target_testing
 
 scan_policy:
   passive_recon: true
@@ -62,6 +93,81 @@ rate_limit:
   max_concurrency: 5
   timeout_seconds: 10
 
+authenticated_crawl:
+  enabled: false
+  header_env: DONZO_AUTH_HEADER
+  cookie_env: DONZO_AUTH_COOKIE
+  allowed_domains: []
+  pass_to_tools: true
+  pass_to_probes: true
+
+verification:
+  enabled: true
+  fail_closed: true
+  network_probe: true
+  probe:
+    max_requests_per_candidate: 2
+    # 0 means unlimited verification probes; rate_limit still controls pacing.
+    max_network_probes: 24
+    # 0 disables same-origin timeout caching.
+    origin_timeout_threshold: 2
+    allowed_methods:
+      - HEAD
+      - GET
+      - OPTIONS
+    allow_post: false
+    follow_redirects: true
+    max_redirects: 2
+    timeout_seconds: 10
+    max_body_bytes: 200000
+    redact_sensitive_data: true
+  soft404:
+    enabled: true
+    baseline_per_host: true
+    random_probe_count: 1
+    similarity_threshold: 0.92
+    content_length_tolerance_ratio: 0.10
+  api_docs:
+    enabled: true
+    verify_schema_url: true
+    max_schema_fetches: 2
+    require_fingerprint: true
+    sensitive_path_keywords:
+      - user
+      - account
+      - order
+      - invoice
+      - document
+      - file
+      - admin
+      - payment
+  sourcemap:
+    enabled: true
+    require_json_parse: true
+    store_full_map: false
+    store_sources_content: false
+    max_map_bytes: 1000000
+  graphql:
+    enabled: true
+    safe_query_test: false
+    introspection_test: false
+    require_graphql_fingerprint: true
+  bola_filter:
+    enabled: true
+    filter_auth_endpoints: true
+    require_resource_keyword: true
+    require_object_id: true
+  redirect_filter:
+    enabled: true
+    filter_login_redirects: true
+    filter_home_redirects: true
+    keep_for_open_redirect_candidates: true
+  cluster:
+    enabled: true
+    triage_unit: cluster
+    min_verified_candidates_for_cluster: 1
+    exclude_common_error_clusters: true
+
 llm:
   required: true
   fail_closed: true
@@ -71,7 +177,8 @@ llm:
     codex_cli:
       enabled: true
       command: codex
-      model: default
+      model: gpt-5.5
+      model_reasoning_effort: xhigh
       temperature: 0.0
       json_schema_required: true
       timeout_seconds: 180

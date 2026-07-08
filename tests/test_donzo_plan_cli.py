@@ -12,9 +12,7 @@ def test_fast_plan_disables_nuclei_when_policy_false() -> None:
     config = load_scope_config(Path("scope.example.yaml"))
     plan = build_recon_plan(config, profile="fast")
     modules = {
-        module["name"]: module
-        for phase in plan.to_dict()["phases"]
-        for module in phase["modules"]
+        module["name"]: module for phase in plan.to_dict()["phases"] for module in phase["modules"]
     }
     assert modules["nuclei_safe"]["enabled"] is False
     assert modules["nuclei_safe"]["reason"] == "disabled_by_scan_policy:nuclei_scan"
@@ -26,9 +24,7 @@ def test_normal_plan_includes_llm_tribunal() -> None:
     config = load_scope_config(Path("scope.example.yaml"))
     plan = build_recon_plan(config, profile="normal")
     modules = {
-        module["name"]: module
-        for phase in plan.to_dict()["phases"]
-        for module in phase["modules"]
+        module["name"]: module for phase in plan.to_dict()["phases"] for module in phase["modules"]
     }
     assert modules["llm_candidate_generator"]["enabled"] is True
     assert modules["llm_candidate_generator"]["reason"] == "enabled_by_mandatory_llm:codex_cli"
