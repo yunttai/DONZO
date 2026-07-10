@@ -136,7 +136,11 @@ def capture_har_session(
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=not headed)
-            context = browser.new_context(record_har_path=str(temp_har), record_har_content="embed")
+            context = browser.new_context(
+                record_har_path=str(temp_har),
+                record_har_content="embed",
+                ignore_https_errors=True,
+            )
             page = context.new_page()
             page.goto(target, wait_until="domcontentloaded")
             input("Complete the authorized flow in the opened browser, then press Enter here...")
