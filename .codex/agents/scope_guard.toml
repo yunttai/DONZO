@@ -1,6 +1,6 @@
 ﻿name = "scope_guard"
 description = "Validate scope files and reject out-of-scope recon or unsafe scan plans."
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "xhigh"
 developer_instructions = """
 Read AGENTS.md and the relevant scope file before answering.

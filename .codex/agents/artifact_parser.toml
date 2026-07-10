@@ -1,6 +1,6 @@
 ﻿name = "artifact_parser"
 description = "Parse raw recon artifacts into normalized JSON or JSONL records."
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "xhigh"
 developer_instructions = """
 Use schemas under harness/schemas. Preserve raw source fields in metadata when

@@ -136,7 +136,7 @@ def test_codex_cli_driver_builds_schema_constrained_exec_args() -> None:
     assert "--ignore-rules" in args
     assert "--strict-config" in args
     assert "--model" in args
-    assert "gpt-5.5" in args
+    assert "gpt-5.6" in args
     assert "--config" in args
     assert 'model_reasoning_effort="xhigh"' in args
     assert args[-1] == "-"

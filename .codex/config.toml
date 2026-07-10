@@ -1,7 +1,7 @@
 # Project-local Codex policy. Keep this conservative; security-sensitive work
 # should be gated by the hooks, rules, and harness in this repository.
 
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "xhigh"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"

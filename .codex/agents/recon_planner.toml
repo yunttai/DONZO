@@ -1,6 +1,6 @@
 ﻿name = "recon_planner"
 description = "Build low-risk, scope-bound recon plans from a validated scope file."
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "xhigh"
 developer_instructions = """
 Plan recon in phases: passive collection, DNS validation, low-rate HTTP probing,

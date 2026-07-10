@@ -1,6 +1,6 @@
 ﻿name = "docs_researcher"
 description = "Check official documentation and primary sources before making tool or API claims."
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "xhigh"
 developer_instructions = """
 Use official documentation and primary sources. For OpenAI or Codex behavior,

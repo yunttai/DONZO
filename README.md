@@ -236,7 +236,7 @@ sites: `candidate_generator`, `finding_triage`, `cluster_triage`, and
 `report_writer`. Normal
 execution is one Codex call per submitted batch or finding, with up to
 `llm.drivers.codex_cli.max_attempts` retries for invalid schema output. The
-default external LLM driver is `codex_cli`, using `gpt-5.5` with
+default external LLM driver is `codex_cli`, using `gpt-5.6` with
 `model_reasoning_effort=xhigh`, wrapped by a job workspace, JSON
 Schema validator, retry loop, cache, SQLite job log, and audit JSONL. Actual
 `donzo run` execution enables cluster triage and external Codex CLI calls by
